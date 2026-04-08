@@ -1,0 +1,70 @@
+Azure Event Driven Platform - Setup & Run Guide
+
+1. Installed .NET SDK
+- Verified installation:
+  dotnet --version
+
+2. Created solution file
+- Command:
+  dotnet new sln -n AzureEventDrivenPlatform
+- Note: .NET 10 may create a .slnx file instead of .sln
+
+3. Created project structure
+- Created src folder:
+  mkdir src
+
+- Created Web API project:
+  dotnet new webapi -n Api -o src/Api
+
+4. Added project to solution
+- If using .slnx:
+  dotnet sln AzureEventDrivenPlatform.slnx add src/Api/Api.csproj
+
+- Or generic:
+  dotnet sln add src/Api/Api.csproj
+
+5. Running the API locally
+- Command:
+  dotnet run --project src/Api
+
+6. HTTPS development certificate (macOS)
+- Trusted certificate:
+  dotnet dev-certs https --trust
+
+- Required for secure HTTPS endpoints in local development
+
+7. Swagger testing
+- Open browser:
+  https://localhost:<port>/swagger
+
+- Default endpoints available for testing
+
+8. Port binding issue fix
+- Error encountered:
+  Failed to bind to address http://127.0.0.1:5171: address already in use
+
+- Temporary fix (run on different ports):
+  dotnet run --project src/Api --urls "http://localhost:5199;https://localhost:7200"
+
+- Access Swagger:
+  https://localhost:7200/swagger
+
+- Optional permanent fix:
+  Update src/Api/Properties/launchSettings.json
+
+  Example:
+  "applicationUrl": "http://localhost:5199;https://localhost:7200"
+
+9. Initial Git commit
+- Commands:
+  git add .
+  git commit -m "Initial solution and API setup"
+  git push
+
+Next Steps:
+- Remove default WeatherForecast controller
+- Add custom EventsController
+- Introduce Service Bus (event-driven architecture)
+- Add Azure Functions for background processing
+- Implement security (Managed Identity, Key Vault)
+- Add monitoring (Application Insights)Í
