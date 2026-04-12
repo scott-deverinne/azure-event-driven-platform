@@ -67,4 +67,4 @@ Next Steps:
 - Introduce Service Bus (event-driven architecture)
 - Add Azure Functions for background processing
 - Implement security (Managed Identity, Key Vault)
-- Add monitoring (Application Insights)Í
+- Add monitoring (Application Insights)

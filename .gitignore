@@ -55,3 +55,6 @@ nunit-*.xml
 
 # Local development secrets
 appsettings.Development.json
+
+# Azure Functions local settings
+local.settings.json
