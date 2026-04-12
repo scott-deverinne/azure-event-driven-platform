@@ -1,6 +1,3 @@
-using System;
-using System.Threading.Tasks;
-using Azure.Messaging.ServiceBus;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -8,24 +5,18 @@ namespace Functions;
 
 public class ProcessEventFunction
 {
-    private readonly ILogger<ProcessEventFunction> _logger;
+    private readonly ILogger _logger;
 
-    public ProcessEventFunction(ILogger<ProcessEventFunction> logger)
+    public ProcessEventFunction(ILoggerFactory loggerFactory)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<ProcessEventFunction>();
     }
 
-    [Function(nameof(ProcessEventFunction))]
-    public async Task Run(
-        [ServiceBusTrigger("myqueue", Connection = "")]
-        ServiceBusReceivedMessage message,
-        ServiceBusMessageActions messageActions)
+    [Function("ProcessEventFunction")]
+    public void Run(
+        [ServiceBusTrigger("event-queue", Connection = "ServiceBusConnection")]
+        string message)
     {
-        _logger.LogInformation("Message ID: {id}", message.MessageId);
-        _logger.LogInformation("Message Body: {body}", message.Body);
-        _logger.LogInformation("Message Content-Type: {contentType}", message.ContentType);
-
-        // Complete the message
-        await messageActions.CompleteMessageAsync(message);
+        _logger.LogInformation("Received message: {Message}", message);
     }
 }
