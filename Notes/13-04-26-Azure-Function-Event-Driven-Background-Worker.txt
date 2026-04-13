@@ -1,0 +1,28 @@
+13/04/26 — Azure Function: Event-Driven Background Worker
+Overview
+
+This Azure Function acts as a background worker that reacts to events in an event-driven architecture.
+
+Flow
+You send request (Swagger)
+API receives it
+API sends message → Service Bus queue
+Function is listening 👂
+Function picks up message automatically
+Function processes it
+Purpose
+
+This was added to decouple processing from the API and introduce asynchronous, event-driven behaviour into the system.
+
+It demonstrates
+    Azure Service Bus integration
+    Event-driven architecture
+    Background processing with Azure Functions
+    Message deserialization and validation
+    Structured logging and processing flow
+What this enables next
+    Scalable and resilient processing independent of the API
+    Adding real business logic (e.g. persistence, analytics, notifications)
+    Implementing retries, error handling, and dead-letter queues
+    Integrating monitoring (Application Insights)
+    Securing configuration with Key Vault and Managed Identity
