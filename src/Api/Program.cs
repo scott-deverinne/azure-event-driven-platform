@@ -1,5 +1,6 @@
+using Azure.Identity;
 using Azure.Messaging.ServiceBus;
-using Microsoft.ApplicationInsights.Extensibility;
+using Azure.Security.KeyVault.Secrets;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,14 +15,26 @@ builder.Services.AddSwaggerGen();
 // and centralised monitoring across the API
 builder.Services.AddApplicationInsightsTelemetry();
 
-// Retrieves Service Bus connection string from configuration
-var serviceBusConnectionString = builder.Configuration["ServiceBus:ConnectionString"];
+// Retrieves Key Vault URI and queue name from configuration
+var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
+var queueName = builder.Configuration["ServiceBus:QueueName"];
 
-// Registers ServiceBusClient as a singleton so the API can publish
-// messages efficiently without recreating connections per request
-if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
+if (!string.IsNullOrWhiteSpace(keyVaultUri))
 {
-    builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionString));
+    // DefaultAzureCredential allows local development using developer identity
+    // and automatically switches to Managed Identity when deployed in Azure
+    var secretClient = new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential());
+
+    // Retrieves the Service Bus connection string securely from Key Vault
+    var secret = secretClient.GetSecret("ServiceBusConnection");
+    var serviceBusConnectionString = secret.Value.Value;
+
+    if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
+    {
+        // Registers ServiceBusClient using a securely retrieved secret instead of config
+        // Ensures efficient connection reuse and removes hard-coded credentials
+        builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionString));
+    }
 }
 
 var app = builder.Build();
