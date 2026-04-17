@@ -1,0 +1,48 @@
+name: Deploy API to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/Api/**'
+      - '.github/workflows/deploy-api.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore API dependencies
+        run: dotnet restore src/Api/Api.csproj
+
+      - name: Build API
+        run: dotnet build src/Api/Api.csproj --configuration Release --no-restore
+
+      - name: Publish API
+        run: dotnet publish src/Api/Api.csproj --configuration Release --no-build --output ./publish
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: event-platform-api-scott
+          package: ./publish
