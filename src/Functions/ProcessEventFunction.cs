@@ -124,6 +124,12 @@ public class ProcessEventFunction
             eventItem.Id,
             blobPath);
 
+        // After validation checks and before processing log
+        if (eventItem.Type == "force-fail")
+        {
+            _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
+            throw new Exception("Simulated failure");
+        }
         // Final processing completion log
         _logger.LogInformation("Event {EventId} processed successfully.", eventItem.Id);
     }
