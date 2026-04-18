@@ -1,18 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Use .NET 8 LTS for better Azure App Service runtime stability -->
+    <TargetFramework>net8.0</TargetFramework>
+
+    <!-- Enable nullable reference type analysis -->
     <Nullable>enable</Nullable>
+
+    <!-- Enable implicit global using directives -->
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Azure identity support for Key Vault and managed authentication -->
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+
+    <!-- Service Bus client for publishing integration events -->
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
+
+    <!-- Key Vault secret client for secure runtime secret retrieval -->
     <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.10.0" />
+
+    <!-- Application Insights telemetry for requests, dependencies, and failures -->
     <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="3.1.0" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.7" />
+
+    <!-- OpenAPI metadata support for ASP.NET Core -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.13" />
+
+    <!-- Swagger UI and OpenAPI document generation -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.8.1" />
   </ItemGroup>
 
 </Project>
