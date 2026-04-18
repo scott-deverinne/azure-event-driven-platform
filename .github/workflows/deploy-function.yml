@@ -1,0 +1,48 @@
+name: Deploy Function App to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/Functions/**'
+      - '.github/workflows/deploy-function.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Function dependencies
+        run: dotnet restore src/Functions/Functions.csproj
+
+      - name: Build Function
+        run: dotnet build src/Functions/Functions.csproj --configuration Release --no-restore
+
+      - name: Publish Function
+        run: dotnet publish src/Functions/Functions.csproj --configuration Release --output ./publish
+
+      - name: Azure login with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Function App
+        uses: Azure/functions-action@v1
+        with:
+          app-name: event-platform-func-scott
+          package: ./publish
