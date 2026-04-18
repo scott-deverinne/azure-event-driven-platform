@@ -45,7 +45,7 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 // Redirects HTTP traffic to HTTPS
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 
 // Adds authorization middleware for future secured endpoints
 app.UseAuthorization();
