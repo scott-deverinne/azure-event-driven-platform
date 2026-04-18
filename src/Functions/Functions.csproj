@@ -1,19 +1,39 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- Align with Azure Function App runtime -->
+    <TargetFramework>net8.0</TargetFramework>
+
+    <!-- Azure Functions runtime version -->
     <AzureFunctionsVersion>v4</AzureFunctionsVersion>
+
+    <!-- Isolated worker runs as an executable -->
     <OutputType>Exe</OutputType>
+
+    <!-- Reduce boilerplate and enable null safety -->
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Key Vault configuration provider -->
     <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" Version="1.5.0" />
+
+    <!-- Managed identity and local Azure auth -->
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
+
+    <!-- Key Vault secret client -->
     <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.10.0" />
+
+    <!-- Blob Storage persistence -->
     <PackageReference Include="Azure.Storage.Blobs" Version="12.27.0" />
+
+    <!-- Azure Functions isolated worker runtime -->
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.50.0" />
+
+    <!-- Functions SDK build tooling -->
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.5" OutputItemType="Analyzer" />
+
+    <!-- Service Bus trigger/binding support -->
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" Version="5.24.0" />
   </ItemGroup>
 </Project>
