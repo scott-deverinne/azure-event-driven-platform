@@ -11,50 +11,59 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Adds Application Insights for request telemetry, dependency tracking,
-// and centralized monitoring across the API
+// Adds Application Insights for request telemetry and monitoring
 builder.Services.AddApplicationInsightsTelemetry();
 
-// Retrieves Key Vault URI and queue name from configuration
+// Read configuration values
 var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
-var queueName = builder.Configuration["ServiceBus:QueueName"];
+var serviceBusConnectionString = builder.Configuration["ServiceBusConnection"];
 
-if (!string.IsNullOrWhiteSpace(keyVaultUri))
+// Prefer direct configuration (App Service setting) first
+// This avoids startup failures if Key Vault is misconfigured
+if (string.IsNullOrWhiteSpace(serviceBusConnectionString) &&
+    !string.IsNullOrWhiteSpace(keyVaultUri))
 {
-    // DefaultAzureCredential allows local development using developer identity
-    // and automatically switches to Managed Identity when deployed in Azure
-    var secretClient = new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential());
-
-    // Retrieves the Service Bus connection string securely from Key Vault
-    var secret = secretClient.GetSecret("ServiceBusConnection");
-    var serviceBusConnectionString = secret.Value.Value;
-
-    if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
+    try
     {
-        // Registers ServiceBusClient using a securely retrieved secret instead of config
-        // Ensures efficient connection reuse and removes hard-coded credentials
-        builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionString));
+        // Use Managed Identity in Azure, local credentials in dev
+        var secretClient = new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential());
+
+        // Retrieve Service Bus connection string from Key Vault
+        var secret = secretClient.GetSecret("ServiceBusConnection");
+        serviceBusConnectionString = secret.Value.Value;
+    }
+    catch (Exception ex)
+    {
+        // Log but do not crash immediately — fallback handled below
+        Console.WriteLine($"Key Vault access failed: {ex.Message}");
     }
 }
 
+// Fail fast if no Service Bus connection string is available
+if (string.IsNullOrWhiteSpace(serviceBusConnectionString))
+{
+    throw new InvalidOperationException(
+        "Service Bus connection string is not configured. " +
+        "Set 'ServiceBusConnection' in App Settings or configure Key Vault access.");
+}
+
+// Register ServiceBusClient as a singleton for efficient reuse
+builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionString));
+
 var app = builder.Build();
 
-// ✅ Enable Swagger for ALL environments (including Azure)
-// This ensures the API documentation is accessible after deployment
+// Enable Swagger in all environments (useful for demo + debugging in Azure)
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Redirects HTTP traffic to HTTPS
-//app.UseHttpsRedirection();
+// NOTE: HTTPS redirection can cause issues in Azure App Service Linux
+// because the internal port is HTTP (8080). Safe to disable for now.
+// app.UseHttpsRedirection();
 
-// Adds authorization middleware for future secured endpoints
 app.UseAuthorization();
 
-// Maps controller routes
+// Map controller routes
 app.MapControllers();
 
-// Temporary probe endpoint to verify the deployed app is serving requests
-app.MapGet("/health", () => Results.Ok("API is running"));
-
-// Starts the application
+// Start the application
 app.Run();
