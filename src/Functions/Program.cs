@@ -1,23 +1,51 @@
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
+using Azure.Messaging.ServiceBus;
+using Microsoft.ApplicationInsights.Extensibility;
 
-var host = new HostBuilder()
-    .ConfigureAppConfiguration((context, config) =>
-    {
-        var builtConfig = config.Build();
-        var keyVaultUri = builtConfig["KeyVault:VaultUri"];
+var builder = WebApplication.CreateBuilder(args);
 
-        if (!string.IsNullOrWhiteSpace(keyVaultUri))
-        {
-            // Loads secrets from Key Vault so bindings can resolve them from configuration
-            config.AddAzureKeyVault(
-                new Uri(keyVaultUri),
-                new DefaultAzureCredential());
-        }
-    })
-    .ConfigureFunctionsWorkerDefaults()
-    .Build();
+// Add Key Vault (optional if already added)
+var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
+if (!string.IsNullOrWhiteSpace(keyVaultUri))
+{
+    builder.Configuration.AddAzureKeyVault(
+        new Uri(keyVaultUri),
+        new DefaultAzureCredential());
+}
 
-host.Run();
+// Registers MVC controllers for API endpoints
+builder.Services.AddControllers();
+
+// Enables OpenAPI/Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Application Insights
+builder.Services.AddApplicationInsightsTelemetry();
+
+// Service Bus setup (from Key Vault or config)
+var serviceBusConnectionString = builder.Configuration["ServiceBusConnection"];
+
+if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
+{
+    builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionString));
+}
+
+var app = builder.Build();
+
+// ✅ Enable Swagger in ALL environments (important for Azure)
+app.UseSwagger();
+app.UseSwaggerUI();
+
+// Redirect HTTP traffic to HTTPS
+app.UseHttpsRedirection();
+
+// Authorization middleware
+app.UseAuthorization();
+
+// Map controllers
+app.MapControllers();
+
+// Run app
+app.Run();
