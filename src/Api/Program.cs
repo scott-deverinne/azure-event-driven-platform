@@ -12,7 +12,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Adds Application Insights for request telemetry, dependency tracking,
-// and centralised monitoring across the API
+// and centralized monitoring across the API
 builder.Services.AddApplicationInsightsTelemetry();
 
 // Retrieves Key Vault URI and queue name from configuration
@@ -39,12 +39,10 @@ if (!string.IsNullOrWhiteSpace(keyVaultUri))
 
 var app = builder.Build();
 
-// Enables Swagger UI during development for endpoint testing
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// ✅ Enable Swagger for ALL environments (including Azure)
+// This ensures the API documentation is accessible after deployment
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Redirects HTTP traffic to HTTPS
 app.UseHttpsRedirection();
