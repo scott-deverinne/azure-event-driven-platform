@@ -26,6 +26,16 @@ public class EventsController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet("health")]
+    public IActionResult Health()
+    {
+        // Simple route used to confirm the controller is deployed and reachable in Azure
+        return Ok(new
+        {
+            message = "Events API is running"
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateEvent([FromBody] EventItem item)
     {
@@ -50,7 +60,10 @@ public class EventsController : ControllerBase
         var message = new ServiceBusMessage(messageBody);
 
         // Logs before publishing to Service Bus to track outbound dependency
-        _logger.LogInformation("Publishing event {EventId} to Service Bus queue {QueueName}", item.Id, queueName);
+        _logger.LogInformation(
+            "Publishing event {EventId} to Service Bus queue {QueueName}",
+            item.Id,
+            queueName);
 
         await sender.SendMessageAsync(message);
 
