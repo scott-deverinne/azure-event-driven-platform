@@ -53,5 +53,8 @@ app.UseAuthorization();
 // Maps controller routes
 app.MapControllers();
 
+// Temporary probe endpoint to verify the deployed app is serving requests
+app.MapGet("/health", () => Results.Ok("API is running"));
+
 // Starts the application
 app.Run();
