@@ -65,13 +65,21 @@ public class ProcessEventFunction
                 eventItem.Data,
                 eventItem.CreatedAt);
 
+            var queueName = _configuration["ServiceBus:QueueName"];
             var blobConnectionString = _configuration["BlobStorageConnection"];
             var containerName = _configuration["BlobStorage:ContainerName"];
 
             _logger.LogInformation(
-                "Blob config present. Connection set: {HasConnection}. Container: {ContainerName}",
+                "Resolved config. Queue: {QueueName}. Blob connection set: {HasConnection}. Container: {ContainerName}",
+                queueName,
                 !string.IsNullOrWhiteSpace(blobConnectionString),
                 containerName);
+
+            if (string.IsNullOrWhiteSpace(queueName))
+            {
+                _logger.LogError("Service Bus queue name is not configured.");
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(blobConnectionString))
             {
