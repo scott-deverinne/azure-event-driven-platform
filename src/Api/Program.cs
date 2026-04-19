@@ -3,7 +3,8 @@ using Azure.Messaging.ServiceBus;
 using Azure.Security.KeyVault.Secrets;
 
 var builder = WebApplication.CreateBuilder(args);
-
+Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
+Console.WriteLine($"Queue: {builder.Configuration["ServiceBus:QueueName"]}");
 // Load environment-specific configuration files
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
