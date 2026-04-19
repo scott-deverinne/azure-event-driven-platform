@@ -6,6 +6,14 @@ using Microsoft.Extensions.Hosting;
 var host = new HostBuilder()
     .ConfigureAppConfiguration((context, config) =>
     {
+        // Load base and environment-specific configuration files first
+        config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+              .AddJsonFile(
+                  $"appsettings.{context.HostingEnvironment.EnvironmentName}.json",
+                  optional: true,
+                  reloadOnChange: false)
+              .AddEnvironmentVariables();
+
         var builtConfig = config.Build();
         var keyVaultUri = builtConfig["KeyVault:VaultUri"];
 

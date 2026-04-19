@@ -1,4 +1,5 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <!-- Align with Azure Function App runtime -->
     <TargetFramework>net8.0</TargetFramework>
@@ -36,4 +37,12 @@
     <!-- Service Bus trigger/binding support -->
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.ServiceBus" Version="5.24.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- appsettings.json must be included in the build output -->
+    <None Update="appsettings*.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

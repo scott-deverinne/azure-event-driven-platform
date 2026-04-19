@@ -21,7 +21,7 @@ public class ProcessEventFunction
 
     [Function("ProcessEventFunction")]
     public async Task Run(
-        [ServiceBusTrigger("event-queue", Connection = "ServiceBusConnection")]
+        [ServiceBusTrigger("%ServiceBus:QueueName%", Connection = "ServiceBusConnection")]
         string message)
     {
         try
@@ -66,7 +66,7 @@ public class ProcessEventFunction
                 eventItem.CreatedAt);
 
             var blobConnectionString = _configuration["BlobStorageConnection"];
-            var containerName = _configuration["BlobContainerName"];
+            var containerName = _configuration["BlobStorage:ContainerName"];
 
             _logger.LogInformation(
                 "Blob config present. Connection set: {HasConnection}. Container: {ContainerName}",

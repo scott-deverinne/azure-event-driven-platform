@@ -21,15 +21,12 @@ public class EventsController : ControllerBase
     {
         _serviceBusClient = serviceBusClient;
         _configuration = configuration;
-
-        // Injects structured logging for request tracing and integration with Application Insights
         _logger = logger;
     }
 
     [HttpGet("health")]
     public IActionResult Health()
     {
-        // Simple route used to confirm the controller is deployed and reachable in Azure
         return Ok(new
         {
             message = "Events API is running"
@@ -39,14 +36,13 @@ public class EventsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateEvent([FromBody] EventItem item)
     {
-        // Logs incoming API event to enable traceability and correlation with downstream processing
+        var queueName = _configuration["ServiceBus:QueueName"];
+
         _logger.LogInformation(
             "Received API event {EventId}. Type: {Type}. Data: {Data}",
             item.Id,
             item.Type,
             item.Data);
-
-        var queueName = _configuration["ServiceBus:QueueName"];
 
         if (string.IsNullOrWhiteSpace(queueName))
         {
@@ -59,7 +55,6 @@ public class EventsController : ControllerBase
         var messageBody = JsonSerializer.Serialize(item);
         var message = new ServiceBusMessage(messageBody);
 
-        // Logs before publishing to Service Bus to track outbound dependency
         _logger.LogInformation(
             "Publishing event {EventId} to Service Bus queue {QueueName}",
             item.Id,

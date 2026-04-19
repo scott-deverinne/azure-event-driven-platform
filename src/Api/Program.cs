@@ -14,7 +14,11 @@ builder.Services.AddSwaggerGen();
 // Adds Application Insights for request telemetry and monitoring
 builder.Services.AddApplicationInsightsTelemetry();
 
-// Read configuration values
+// -----------------------------
+// Configuration Setup
+// -----------------------------
+
+// Read configuration values (supports appsettings + environment variables)
 var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
 var serviceBusConnectionString = builder.Configuration["ServiceBusConnection"];
 
@@ -47,8 +51,16 @@ if (string.IsNullOrWhiteSpace(serviceBusConnectionString))
         "Set 'ServiceBusConnection' in App Settings or configure Key Vault access.");
 }
 
+// -----------------------------
+// Dependency Injection
+// -----------------------------
+
 // Register ServiceBusClient as a singleton for efficient reuse
 builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionString));
+
+// -----------------------------
+// Build App
+// -----------------------------
 
 var app = builder.Build();
 

@@ -16,9 +16,7 @@ public class EventProcessorFunction
 
     [Function("EventProcessorFunction")]
     public void Run(
-        // Uses a separate queue so this baseline processor does not compete
-        // with ProcessEventFunction for messages from the main event queue
-        [ServiceBusTrigger("event-queue-test", Connection = "ServiceBusConnection")]
+        [ServiceBusTrigger("%ServiceBus:TestQueueName%", Connection = "ServiceBusConnection")]
         string message)
     {
         _logger.LogInformation("Received raw message: {Message}", message);
@@ -46,10 +44,8 @@ public class EventProcessorFunction
             eventItem.Id,
             eventItem.Type,
             eventItem.Data,
-            eventItem.CreatedAt
-        );
+            eventItem.CreatedAt);
 
-        // Simulated processing step
         _logger.LogInformation("Event {EventId} processed successfully.", eventItem.Id);
     }
 }
