@@ -84,46 +84,54 @@ public class ProcessEventFunction
 
         if (string.IsNullOrWhiteSpace(blobConnectionString))
         {
-            // Ensure storage configuration is present before attempting persistence
             _logger.LogError("Blob storage connection string is not configured.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(containerName))
         {
-            // Ensure container name is configured
             _logger.LogError("Blob container name is not configured.");
             return;
         }
 
-        // Create Blob service client for interacting with storage account
-        var blobServiceClient = new BlobServiceClient(blobConnectionString);
-
-        // Get reference to the container where events will be stored
-        var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
-
-        // Construct a date-partitioned blob path to organise events for scalability and retrieval
-        var blobPath = $"events/{eventItem.CreatedAt:yyyy/MM/dd}/{eventItem.Id}.json";
-
-        var blobClient = blobContainerClient.GetBlobClient(blobPath);
-
-        // Serialize event to formatted JSON for readability and downstream processing
-        var json = JsonSerializer.Serialize(eventItem, new JsonSerializerOptions
+        try
         {
-            WriteIndented = true
-        });
+            // Create Blob service client for interacting with storage account
+            var blobServiceClient = new BlobServiceClient(blobConnectionString);
 
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            // Get reference to the container where events will be stored
+            var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
-        // Upload event data to Blob Storage as durable storage
-        await blobClient.UploadAsync(stream, overwrite: true);
+            // Ensure the container exists before uploading
+            await blobContainerClient.CreateIfNotExistsAsync();
 
-        // Log successful persistence for traceability and auditability
-        _logger.LogInformation(
-            "Event {EventId} persisted to Blob Storage at {BlobPath}.",
-            eventItem.Id,
-            blobPath);
+            // Construct a date-partitioned blob path to organise events for scalability and retrieval
+            var blobPath = $"events/{eventItem.CreatedAt:yyyy/MM/dd}/{eventItem.Id}.json";
 
+            var blobClient = blobContainerClient.GetBlobClient(blobPath);
+
+            // Serialize event to formatted JSON for readability and downstream processing
+            var json = JsonSerializer.Serialize(eventItem, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+
+            // Upload event data to Blob Storage as durable storage
+            await blobClient.UploadAsync(stream, overwrite: true);
+
+            // Log successful persistence for traceability and auditability
+            _logger.LogInformation(
+                "Event {EventId} persisted to Blob Storage at {BlobPath}.",
+                eventItem.Id,
+                blobPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to persist event {EventId} to Blob Storage.", eventItem.Id);
+            throw;
+        }
         // After validation checks and before processing log
         if (eventItem.Type == "force-fail")
         {
