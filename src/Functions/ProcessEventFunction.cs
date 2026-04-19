@@ -66,7 +66,7 @@ public class ProcessEventFunction
             return;
         }
 
-        // Structured log representing the start of business processing, supports querying in Application Insights
+        // Structured log representing the start of business processing
         _logger.LogInformation(
             "Processing event {EventId}. Type: {Type}. Data: {Data}. CreatedAt: {CreatedAt}",
             eventItem.Id,
@@ -129,15 +129,18 @@ public class ProcessEventFunction
         }
         catch (Exception ex)
         {
+            // Surface the real storage failure in Azure logs
             _logger.LogError(ex, "Failed to persist event {EventId} to Blob Storage.", eventItem.Id);
             throw;
         }
-        // After validation checks and before processing log
+
+        // Simulate failure for resilience testing
         if (eventItem.Type == "force-fail")
         {
             _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
             throw new Exception("Simulated failure");
         }
+
         // Final processing completion log
         _logger.LogInformation("Event {EventId} processed successfully.", eventItem.Id);
     }
