@@ -16,7 +16,9 @@ public class EventProcessorFunction
 
     [Function("EventProcessorFunction")]
     public void Run(
-        [ServiceBusTrigger("event-queue", Connection = "ServiceBusConnection")]
+        // Uses a separate queue so this baseline processor does not compete
+        // with ProcessEventFunction for messages from the main event queue
+        [ServiceBusTrigger("event-queue-test", Connection = "ServiceBusConnection")]
         string message)
     {
         _logger.LogInformation("Received raw message: {Message}", message);
