@@ -8,7 +8,6 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-Private readonly IConfiguration _configuration;
 public class EventsController : ControllerBase
 {
     private readonly ServiceBusClient _serviceBusClient;
@@ -39,6 +38,7 @@ public class EventsController : ControllerBase
     {
         var queueName = _configuration["ServiceBus:QueueName"];
 
+        // Logs incoming API event to enable traceability and correlation with downstream processing
         _logger.LogInformation(
             "Received API event {EventId}. Type: {Type}. Data: {Data}",
             item.Id,
@@ -56,6 +56,7 @@ public class EventsController : ControllerBase
         var messageBody = JsonSerializer.Serialize(item);
         var message = new ServiceBusMessage(messageBody);
 
+        // Logs before publishing to Service Bus to track outbound dependency
         _logger.LogInformation(
             "Publishing event {EventId} to Service Bus queue {QueueName}",
             item.Id,
