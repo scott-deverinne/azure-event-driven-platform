@@ -15,133 +15,109 @@ public class ProcessEventFunction
 
     public ProcessEventFunction(ILoggerFactory loggerFactory, IConfiguration configuration)
     {
-        // Inject structured logging for observability and integration with Application Insights
         _logger = loggerFactory.CreateLogger<ProcessEventFunction>();
-
-        // Inject configuration to access Blob Storage settings
         _configuration = configuration;
     }
 
     [Function("ProcessEventFunction")]
     public async Task Run(
-        // Service Bus trigger enables event-driven execution, decoupling API from processing
         [ServiceBusTrigger("event-queue", Connection = "ServiceBusConnection")]
         string message)
     {
-        // Log raw message payload for traceability and debugging of upstream producers
-        _logger.LogInformation("Received raw message: {Message}", message);
-
-        EventItem? eventItem;
-
         try
         {
-            // Deserialize message into strongly-typed model to enable structured processing
-            eventItem = JsonSerializer.Deserialize<EventItem>(message);
-        }
-        catch (JsonException ex)
-        {
-            // Capture deserialization failures to prevent silent message loss and enable monitoring
-            _logger.LogError(ex, "Failed to deserialize Service Bus message.");
-            return;
-        }
+            _logger.LogInformation("Received raw message: {Message}", message);
 
-        if (eventItem is null)
-        {
-            // Guard clause to handle unexpected null payloads after deserialization
-            _logger.LogWarning("Received null event after deserialization.");
-            return;
-        }
+            EventItem? eventItem;
 
-        if (string.IsNullOrWhiteSpace(eventItem.Type))
-        {
-            // Basic validation to enforce contract integrity before processing
-            _logger.LogWarning("Event {EventId} is missing a type.", eventItem.Id);
-            return;
-        }
+            try
+            {
+                eventItem = JsonSerializer.Deserialize<EventItem>(message);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to deserialize Service Bus message.");
+                return;
+            }
 
-        if (string.IsNullOrWhiteSpace(eventItem.Data))
-        {
-            // Prevent downstream processing of incomplete or invalid events
-            _logger.LogWarning("Event {EventId} is missing data.", eventItem.Id);
-            return;
-        }
+            if (eventItem is null)
+            {
+                _logger.LogWarning("Received null event after deserialization.");
+                return;
+            }
 
-        // Structured log representing the start of business processing
-        _logger.LogInformation(
-            "Processing event {EventId}. Type: {Type}. Data: {Data}. CreatedAt: {CreatedAt}",
-            eventItem.Id,
-            eventItem.Type,
-            eventItem.Data,
-            eventItem.CreatedAt);
+            if (string.IsNullOrWhiteSpace(eventItem.Type))
+            {
+                _logger.LogWarning("Event {EventId} is missing a type.", eventItem.Id);
+                return;
+            }
 
-        // -----------------------------
-        // Blob Storage Persistence
-        // -----------------------------
+            if (string.IsNullOrWhiteSpace(eventItem.Data))
+            {
+                _logger.LogWarning("Event {EventId} is missing data.", eventItem.Id);
+                return;
+            }
 
-        // Retrieve Blob Storage configuration values
-        var blobConnectionString = _configuration["BlobStorageConnection"];
-        var containerName = _configuration["BlobContainerName"];
+            _logger.LogInformation(
+                "Processing event {EventId}. Type: {Type}. Data: {Data}. CreatedAt: {CreatedAt}",
+                eventItem.Id,
+                eventItem.Type,
+                eventItem.Data,
+                eventItem.CreatedAt);
 
-        if (string.IsNullOrWhiteSpace(blobConnectionString))
-        {
-            _logger.LogError("Blob storage connection string is not configured.");
-            return;
-        }
+            var blobConnectionString = _configuration["BlobStorageConnection"];
+            var containerName = _configuration["BlobContainerName"];
 
-        if (string.IsNullOrWhiteSpace(containerName))
-        {
-            _logger.LogError("Blob container name is not configured.");
-            return;
-        }
+            _logger.LogInformation(
+                "Blob config present. Connection set: {HasConnection}. Container: {ContainerName}",
+                !string.IsNullOrWhiteSpace(blobConnectionString),
+                containerName);
 
-        try
-        {
-            // Create Blob service client for interacting with storage account
+            if (string.IsNullOrWhiteSpace(blobConnectionString))
+            {
+                _logger.LogError("Blob storage connection string is not configured.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(containerName))
+            {
+                _logger.LogError("Blob container name is not configured.");
+                return;
+            }
+
             var blobServiceClient = new BlobServiceClient(blobConnectionString);
-
-            // Get reference to the container where events will be stored
             var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
-            // Ensure the container exists before uploading
             await blobContainerClient.CreateIfNotExistsAsync();
 
-            // Construct a date-partitioned blob path to organise events for scalability and retrieval
             var blobPath = $"events/{eventItem.CreatedAt:yyyy/MM/dd}/{eventItem.Id}.json";
-
             var blobClient = blobContainerClient.GetBlobClient(blobPath);
 
-            // Serialize event to formatted JSON for readability and downstream processing
             var json = JsonSerializer.Serialize(eventItem, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
 
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
-
-            // Upload event data to Blob Storage as durable storage
             await blobClient.UploadAsync(stream, overwrite: true);
 
-            // Log successful persistence for traceability and auditability
             _logger.LogInformation(
                 "Event {EventId} persisted to Blob Storage at {BlobPath}.",
                 eventItem.Id,
                 blobPath);
+
+            if (eventItem.Type == "force-fail")
+            {
+                _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
+                throw new Exception("Simulated failure");
+            }
+
+            _logger.LogInformation("Event {EventId} processed successfully.", eventItem.Id);
         }
         catch (Exception ex)
         {
-            // Surface the real storage failure in Azure logs
-            _logger.LogError(ex, "Failed to persist event {EventId} to Blob Storage.", eventItem.Id);
+            _logger.LogError(ex, "Unhandled failure in ProcessEventFunction.");
             throw;
         }
-
-        // Simulate failure for resilience testing
-        if (eventItem.Type == "force-fail")
-        {
-            _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
-            throw new Exception("Simulated failure");
-        }
-
-        // Final processing completion log
-        _logger.LogInformation("Event {EventId} processed successfully.", eventItem.Id);
     }
 }
