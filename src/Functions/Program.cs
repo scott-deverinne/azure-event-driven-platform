@@ -6,6 +6,8 @@ using Microsoft.Extensions.Hosting;
 var host = new HostBuilder()
     .ConfigureAppConfiguration((context, config) =>
     {
+        var environment = context.HostingEnvironment.EnvironmentName;
+        Console.WriteLine($"Running in environment: {environment}");
         // Load base and environment-specific configuration files first
         config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
               .AddJsonFile(
