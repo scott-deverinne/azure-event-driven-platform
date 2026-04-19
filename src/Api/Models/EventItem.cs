@@ -1,4 +1,4 @@
-namespace Functions.Models;
+namespace Api.Models;
 
 public class EventItem
 {
