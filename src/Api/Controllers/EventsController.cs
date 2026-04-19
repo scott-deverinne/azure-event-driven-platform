@@ -8,6 +8,7 @@ namespace Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+Private readonly IConfiguration _configuration;
 public class EventsController : ControllerBase
 {
     private readonly ServiceBusClient _serviceBusClient;
