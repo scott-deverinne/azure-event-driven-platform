@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths:
       - 'src/Functions/**'
       - '.github/workflows/deploy-function.yml'
@@ -34,6 +35,15 @@ jobs:
       - name: Publish Function
         run: dotnet publish src/Functions/Functions.csproj --configuration Release --output ./publish
 
+      - name: Set app name
+        id: vars
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "develop" ]; then
+            echo "app_name=event-platform-func-scott-dev" >> $GITHUB_OUTPUT
+          else
+            echo "app_name=event-platform-func-scott" >> $GITHUB_OUTPUT
+          fi
+
       - name: Azure login with OIDC
         uses: azure/login@v2
         with:
@@ -44,5 +54,5 @@ jobs:
       - name: Deploy to Azure Function App
         uses: Azure/functions-action@v1
         with:
-          app-name: event-platform-func-scott
+          app-name: ${{ steps.vars.outputs.app_name }}
           package: ./publish

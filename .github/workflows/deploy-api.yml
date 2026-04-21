@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths:
       - 'src/Api/**'
       - '.github/workflows/deploy-api.yml'
@@ -32,7 +33,16 @@ jobs:
         run: dotnet build src/Api/Api.csproj --configuration Release --no-restore
 
       - name: Publish API
-        run: dotnet publish src/Api/Api.csproj --configuration Release --no-build --output ./publish
+        run: dotnet publish src/Api/Api.csproj --configuration Release --output ./publish
+
+      - name: Set app name
+        id: vars
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "develop" ]; then
+            echo "app_name=event-platform-api-scott-dev" >> $GITHUB_OUTPUT
+          else
+            echo "app_name=event-platform-api-scott" >> $GITHUB_OUTPUT
+          fi
 
       - name: Azure login with OIDC
         uses: azure/login@v2
@@ -44,5 +54,5 @@ jobs:
       - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
-          app-name: event-platform-api-scott
+          app-name: ${{ steps.vars.outputs.app_name }}
           package: ./publish
