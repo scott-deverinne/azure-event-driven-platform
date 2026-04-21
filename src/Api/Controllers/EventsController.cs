@@ -56,6 +56,9 @@ public class EventsController : ControllerBase
         var messageBody = JsonSerializer.Serialize(item);
         var message = new ServiceBusMessage(messageBody);
 
+        message.ApplicationProperties["EventId"] = item.Id.ToString();
+        message.ApplicationProperties["EventType"] = item.Type;
+
         // Logs before publishing to Service Bus to track outbound dependency
         _logger.LogInformation(
             "Publishing event {EventId} to Service Bus queue {QueueName}",
@@ -63,6 +66,11 @@ public class EventsController : ControllerBase
             queueName);
 
         await sender.SendMessageAsync(message);
+
+        _logger.LogInformation(
+            "Published event {EventId} successfully to queue {QueueName}",
+            item.Id,
+            queueName);
 
         return Accepted(new
         {
