@@ -1,10 +1,13 @@
 using Azure.Identity;
 using Azure.Messaging.ServiceBus;
 using Azure.Security.KeyVault.Secrets;
+using Microsoft.Extensions.Logging.ApplicationInsights;
 
 var builder = WebApplication.CreateBuilder(args);
+
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
 Console.WriteLine($"Queue: {builder.Configuration["ServiceBus:QueueName"]}");
+
 // Load environment-specific configuration files
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
@@ -24,36 +27,34 @@ builder.Services.AddSwaggerGen();
 // Adds Application Insights for request telemetry and monitoring
 builder.Services.AddApplicationInsightsTelemetry();
 
+// ✅ ADD THIS — enables ILogger → App Insights (this is what you're missing)
+builder.Logging.AddApplicationInsights();
+builder.Logging.SetMinimumLevel(LogLevel.Information);
+
 // -----------------------------
 // Configuration Setup
 // -----------------------------
 
-// Read configuration values (supports appsettings + environment variables)
 var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
 var serviceBusConnectionString = builder.Configuration["ServiceBusConnection"];
 
-// Prefer direct configuration (App Service setting) first
-// This avoids startup failures if Key Vault is misconfigured
+// Prefer direct configuration first
 if (string.IsNullOrWhiteSpace(serviceBusConnectionString) &&
     !string.IsNullOrWhiteSpace(keyVaultUri))
 {
     try
     {
-        // Use Managed Identity in Azure, local credentials in dev
         var secretClient = new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential());
-
-        // Retrieve Service Bus connection string from Key Vault
         var secret = secretClient.GetSecret("ServiceBusConnection");
         serviceBusConnectionString = secret.Value.Value;
     }
     catch (Exception ex)
     {
-        // Log but do not crash immediately — fallback handled below
         Console.WriteLine($"Key Vault access failed: {ex.Message}");
     }
 }
 
-// Fail fast if no Service Bus connection string is available
+// Fail fast if missing
 if (string.IsNullOrWhiteSpace(serviceBusConnectionString))
 {
     throw new InvalidOperationException(
@@ -65,7 +66,6 @@ if (string.IsNullOrWhiteSpace(serviceBusConnectionString))
 // Dependency Injection
 // -----------------------------
 
-// Register ServiceBusClient as a singleton for efficient reuse
 builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionString));
 
 // -----------------------------
@@ -74,18 +74,14 @@ builder.Services.AddSingleton(_ => new ServiceBusClient(serviceBusConnectionStri
 
 var app = builder.Build();
 
-// Enable Swagger in all environments (useful for demo + debugging in Azure)
+// Enable Swagger
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// NOTE: HTTPS redirection can cause issues in Azure App Service Linux
-// because the internal port is HTTP (8080). Safe to disable for now.
-// app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // leave off for Azure
 
 app.UseAuthorization();
 
-// Map controller routes
 app.MapControllers();
 
-// Start the application
 app.Run();
