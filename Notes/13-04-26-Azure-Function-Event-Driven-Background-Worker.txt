@@ -7,7 +7,7 @@ Flow
 You send request (Swagger)
 API receives it
 API sends message → Service Bus queue
-Function is listening 👂
+Function is listening
 Function picks up message automatically
 Function processes it
 Purpose

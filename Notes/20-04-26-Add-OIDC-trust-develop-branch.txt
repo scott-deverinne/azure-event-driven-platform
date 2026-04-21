@@ -1,0 +1,47 @@
+20-04-26-Add-OIDC-trust-develop-branch.txt
+
+---
+
+Add OIDC trust for develop branch
+
+* Issue: GitHub Actions failed on develop branch
+* Error: No matching federated identity record
+* Cause: Azure only trusted main branch
+
+What was happening:
+
+* OIDC login checks GitHub branch
+* Token subject includes branch name
+* Azure did not recognise develop
+
+Fix steps:
+
+* Go to Azure Portal
+* Open Microsoft Entra ID
+* Go to App Registrations
+* Select app linked to AZURE_CLIENT_ID
+* Open Certificates & Secrets
+* Go to Federated Credentials
+* Add new credential
+
+Credential setup:
+
+* Scenario: GitHub Actions deploying Azure resources
+* Repository: scott-deverinne/azure-event-driven-platform
+* Entity type: Branch
+* Branch name: develop
+* Name: github-develop
+
+Result:
+
+* Azure now trusts develop branch
+* GitHub Actions can authenticate
+* CI/CD works for dev environment
+
+Final state:
+
+* main → deploys to production
+* develop → deploys to development
+* OIDC authentication working for both
+
+---
