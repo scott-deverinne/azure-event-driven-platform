@@ -1,1 +1,199 @@
-Azure Event Driven Platform - Service Bus Notes
+## Azure Service Bus Notes
+Azure Service Bus is used to queue commands from the API 
+and process them asynchronously via Azure Functions.
+
+### Purpose
+
+* Used to decouple the API from downstream processing
+
+  * API = upstream (first step)
+  * Everything after it = downstream
+  * Decoupling = separating parts of a system so they don’t depend directly on each other
+
+* Enables asynchronous, message-based communication
+
+  * API sends a message and returns immediately
+  * Processing happens later in the background
+
+* Prevents the API from handling long-running or failure-prone tasks directly
+
+### High-Level Architecture
+Client → API → Service Bus (Queue) → Azure Function → Blob Storage
+* Service Bus acts as a buffer between producer and consumer
+* Processing happens asynchronously
+
+  * API responds first
+  * Work happens later in the background
+
+---
+
+### Responsibilities
+
+#### API (Producer)
+
+* Accepts incoming requests
+* Validates input
+* Publishes a message (command) to Service Bus
+
+  * Command = “do this task”
+* Does not perform heavy processing
+
+  * Keeps API fast and simple
+
+---
+
+#### Service Bus (Queue)
+
+* Stores messages safely until processed
+
+  * Durable = messages aren’t lost
+
+* Provides:
+
+  * At-least-once delivery
+
+    * Message may be delivered more than once
+    * System must handle duplicates
+  * Retry mechanisms
+
+    * Automatically retries failed processing
+  * Dead-lettering (DLQ)
+
+    * Failed messages are moved aside after too many retries
+
+* Acts as a load buffer
+
+  * Handles spikes in traffic
+  * Messages wait instead of failing
+
+---
+
+#### Azure Function (Consumer)
+
+* Triggered by messages from Service Bus
+* Consumes and processes messages
+* Performs the actual work
+
+  * e.g. writing to Blob Storage
+
+---
+
+### Messaging Model
+
+* Pattern: Producer–Consumer (Queue-based)
+
+  * One sends → one processes
+
+* Message type: Command
+
+  * “Process this request”
+  * Not an event (“something happened”)
+
+* Not event broadcasting
+
+  * Only one consumer (Function)
+
+---
+
+### System Characteristics
+
+* Asynchronous processing
+
+  * Work happens in the background after response
+
+* Loose coupling
+
+  * Components don’t depend directly on each other
+
+* Independent scaling
+
+  * API and Function can scale separately
+
+* Resilience / fault tolerance
+
+  * Failures don’t break the whole system
+
+---
+
+### Failure Handling
+
+* Messages are retried automatically on failure
+
+* After max retries:
+
+  * Message goes to Dead-Letter Queue (DLQ)
+  * DLQ = storage for failed messages
+
+* Requires idempotent processing
+
+  * Safe to process the same message more than once
+
+---
+
+### Benefits of This Approach
+
+* Fast API response times
+
+  * User doesn’t wait for processing
+
+* Better handling of traffic spikes
+
+  * Queue absorbs load
+
+* Reduced risk of system-wide failure
+
+  * Failures are isolated
+
+* Clear separation of concerns
+
+  * Each component has one job
+
+---
+
+### What Service Bus Is NOT Used For
+
+* Real-time client updates
+
+  * (use SignalR instead)
+
+* High-frequency event streaming
+
+  * (use Event Hubs / Kafka instead)
+
+* Multi-subscriber broadcasting
+
+  * (not using Topics yet)
+
+---
+
+### Future Improvements
+
+* Add topics + subscriptions
+
+  * One message → multiple consumers
+
+* Implement message versioning
+
+  * Handle changes to message structure
+
+* Add correlation IDs
+
+  * Track messages across the system
+
+* Monitor and handle DLQ messages
+
+  * Investigate failures
+
+* Evaluate message ordering (sessions)
+
+  * Process messages in sequence if needed
+
+---
+
+### Summary
+
+> Azure Service Bus is used to queue commands from the API and process them asynchronously via Azure Functions, enabling a decoupled, scalable, and resilient system design.
+
+---
+
+This version keeps everything simple, explicit, and readable, while still being solid enough for interviews or real system design reference.
