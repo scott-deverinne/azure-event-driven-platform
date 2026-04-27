@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Azure.Messaging.ServiceBus; // Needed for ServiceBusReceivedMessage
 using Azure.Storage.Blobs;
 using Functions.Models;
 using Microsoft.Azure.Functions.Worker;
@@ -21,18 +22,27 @@ public class ProcessEventFunction
 
     [Function("ProcessEventFunction")]
     public async Task Run(
+        // 🔥 Changed from string → ServiceBusReceivedMessage to access metadata like CorrelationId
         [ServiceBusTrigger("%ServiceBus:QueueName%", Connection = "ServiceBusConnection")]
-        string message)
+        ServiceBusReceivedMessage message)
     {
         try
         {
-            _logger.LogInformation("Received raw message: {Message}", message);
+            // Extract raw message body
+            var messageBody = message.Body.ToString();
+
+            // 🔥 Log correlation ID for distributed tracing
+            _logger.LogInformation(
+                "Received message with CorrelationId: {CorrelationId}",
+                message.CorrelationId);
+
+            _logger.LogInformation("Received raw message: {Message}", messageBody);
 
             EventItem? eventItem;
 
             try
             {
-                eventItem = JsonSerializer.Deserialize<EventItem>(message);
+                eventItem = JsonSerializer.Deserialize<EventItem>(messageBody);
             }
             catch (JsonException ex)
             {
@@ -58,6 +68,7 @@ public class ProcessEventFunction
                 return;
             }
 
+            // 🔥 Main processing log (key for observability queries)
             _logger.LogInformation(
                 "Processing event {EventId}. Type: {Type}. Data: {Data}. CreatedAt: {CreatedAt}",
                 eventItem.Id,
@@ -93,6 +104,7 @@ public class ProcessEventFunction
                 return;
             }
 
+            // Create Blob client
             var blobServiceClient = new BlobServiceClient(blobConnectionString);
             var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
@@ -109,11 +121,13 @@ public class ProcessEventFunction
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
             await blobClient.UploadAsync(stream, overwrite: true);
 
+            // 🔥 Persistence log (important for debugging pipeline completion)
             _logger.LogInformation(
                 "Event {EventId} persisted to Blob Storage at {BlobPath}.",
                 eventItem.Id,
                 blobPath);
 
+            // Simulate failure scenario for testing retries / DLQ
             if (eventItem.Type == "force-fail")
             {
                 _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);

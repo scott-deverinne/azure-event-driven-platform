@@ -27,7 +27,7 @@ builder.Services.AddSwaggerGen();
 // Adds Application Insights for request telemetry and monitoring
 builder.Services.AddApplicationInsightsTelemetry();
 
-// ✅ ADD THIS — enables ILogger → App Insights (this is what you're missing)
+// enables ILogger → App Insights (this is what you're missing)
 builder.Logging.AddApplicationInsights();
 builder.Logging.SetMinimumLevel(LogLevel.Information);
 

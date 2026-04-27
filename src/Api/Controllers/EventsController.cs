@@ -56,6 +56,8 @@ public class EventsController : ControllerBase
         var messageBody = JsonSerializer.Serialize(item);
         var message = new ServiceBusMessage(messageBody);
 
+        // Add correlation ID / distributed tracing
+        message.CorrelationId = item.Id.ToString();
         message.ApplicationProperties["EventId"] = item.Id.ToString();
         message.ApplicationProperties["EventType"] = item.Type;
 
