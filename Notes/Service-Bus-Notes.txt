@@ -148,24 +148,6 @@ Client → API → Service Bus (Queue) → Azure Function → Blob Storage
 
   * Each component has one job
 
----
-
-### What Service Bus Is NOT Used For
-
-* Real-time client updates
-
-  * (use SignalR instead)
-
-* High-frequency event streaming
-
-  * (use Event Hubs / Kafka instead)
-
-* Multi-subscriber broadcasting
-
-  * (not using Topics yet)
-
----
-
 ### Future Improvements
 
 * Add topics + subscriptions
@@ -187,13 +169,3 @@ Client → API → Service Bus (Queue) → Azure Function → Blob Storage
 * Evaluate message ordering (sessions)
 
   * Process messages in sequence if needed
-
----
-
-### Summary
-
-> Azure Service Bus is used to queue commands from the API and process them asynchronously via Azure Functions, enabling a decoupled, scalable, and resilient system design.
-
----
-
-This version keeps everything simple, explicit, and readable, while still being solid enough for interviews or real system design reference.

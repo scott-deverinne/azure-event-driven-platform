@@ -1,0 +1,193 @@
+## Azure Observability Notes
+
+* Used to monitor system behaviour in real time
+
+  * See what is happening inside the system
+  * Detect issues quickly
+
+* Enables debugging of distributed systems
+
+  * API → Service Bus → Function → Storage
+  * Track flow across multiple components
+
+* Helps diagnose failures and performance issues
+
+  * Identify where things go wrong
+  * Understand why
+
+---
+
+### High-Level Observability Flow
+
+Client → API (logs) → Service Bus → Function (logs) → Blob Storage
+
+* Each component emits telemetry (information collected from a system to be monitored/analysed)
+* Logs are collected in Application Insights
+* Events can be traced end-to-end using Event ID
+
+---
+
+### Core Components
+
+#### Application Insights (Telemetry Platform)
+
+* Central place for logs and telemetry
+
+  * Requests (incoming API calls)
+  * Dependencies (Service Bus calls)
+  * Traces (custom logs)
+  * Exceptions (errors)
+
+* Enables querying using Kusto (KQL)
+
+---
+
+#### API Observability
+
+* Tracks incoming HTTP requests
+
+  * Automatically captured
+
+* Logs key business events
+
+  * Event received
+  * Event sent to Service Bus
+
+* Publishes structured logs
+
+  * Includes Event ID and metadata
+
+---
+
+#### Service Bus (Indirect Observability)
+
+* Not directly logged, but visible via:
+
+  * API dependency logs
+  * Function trigger activity
+
+---
+
+#### Azure Function Observability
+
+* Logs message processing steps
+
+  * Raw message received
+  * Deserialization
+  * Validation
+  * Processing
+  * Blob write
+
+* Captures failures and retries
+
+---
+
+#### Blob Storage (Final State)
+
+* Stores processed events
+
+* Acts as proof of successful processing
+
+---
+
+### Logging Strategy
+
+* Uses structured logging via `ILogger`
+
+  * Logs include key fields (EventId, Type, Data)
+
+* Logs are searchable in App Insights
+
+  * Enables filtering and debugging
+
+---
+
+### Event Correlation
+
+* Event ID is passed through the system
+
+  * API → Service Bus → Function
+
+* Allows manual tracing of a single event
+
+  * Search logs using Event ID
+
+---
+
+### Observability Signals
+
+#### Logs (Primary)
+
+* Custom application logs
+* Show what the system is doing
+
+#### Requests
+
+* API calls
+* Response status and duration
+
+#### Dependencies
+
+* External calls (e.g. Service Bus)
+
+#### Exceptions
+
+* Errors and failures
+
+---
+
+### System Characteristics
+
+* End-to-end visibility
+
+  * Can follow an event through the system
+
+* Asynchronous observability
+
+  * Processing happens later but is still traceable
+
+* Centralised logging
+
+  * All telemetry in one place (App Insights)
+
+---
+
+### Implementation Achievements
+
+* Tracks API requests and event creation
+* Tracks message publishing to Service Bus
+* Tracks Function execution and processing
+* Tracks data persistence to Blob Storage
+* Enables debugging using Event ID
+
+---
+
+### Limitations (Current State)
+
+* No automatic distributed tracing
+
+  * Correlation is manual (via Event ID)
+
+* No dashboards or alerts
+
+* No custom metrics
+
+---
+
+### Future Improvements
+
+* Add distributed tracing (correlation IDs)
+
+  * Automatic linking of API → Function
+
+* Add dashboards
+
+  * Visualise system health
+
+* Add alerts
+
+  * Notify on failures
+
+* Track Dead-Letter Queue (DLQ)
+
+  * Monitor failed messages
