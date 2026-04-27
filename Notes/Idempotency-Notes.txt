@@ -1,0 +1,4 @@
+Idempotency rule
+Use EventItem.Id as the unique event key.
+Same Id = same event.
+If already processed, skip safely.

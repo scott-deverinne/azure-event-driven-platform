@@ -22,7 +22,7 @@ public class ProcessEventFunction
 
     [Function("ProcessEventFunction")]
     public async Task Run(
-        // 🔥 Changed from string → ServiceBusReceivedMessage to access metadata like CorrelationId
+        // Access full Service Bus message (needed for CorrelationId + metadata)
         [ServiceBusTrigger("%ServiceBus:QueueName%", Connection = "ServiceBusConnection")]
         ServiceBusReceivedMessage message)
     {
@@ -31,7 +31,7 @@ public class ProcessEventFunction
             // Extract raw message body
             var messageBody = message.Body.ToString();
 
-            // 🔥 Log correlation ID for distributed tracing
+            // Log correlation ID for distributed tracing
             _logger.LogInformation(
                 "Received message with CorrelationId: {CorrelationId}",
                 message.CorrelationId);
@@ -50,6 +50,9 @@ public class ProcessEventFunction
                 return;
             }
 
+            // -----------------------------
+            // Validation
+            // -----------------------------
             if (eventItem is null)
             {
                 _logger.LogWarning("Received null event after deserialization.");
@@ -68,7 +71,6 @@ public class ProcessEventFunction
                 return;
             }
 
-            // 🔥 Main processing log (key for observability queries)
             _logger.LogInformation(
                 "Processing event {EventId}. Type: {Type}. Data: {Data}. CreatedAt: {CreatedAt}",
                 eventItem.Id,
@@ -76,6 +78,9 @@ public class ProcessEventFunction
                 eventItem.Data,
                 eventItem.CreatedAt);
 
+            // -----------------------------
+            // Configuration
+            // -----------------------------
             var queueName = _configuration["ServiceBus:QueueName"];
             var blobConnectionString = _configuration["BlobStorageConnection"];
             var containerName = _configuration["BlobStorage:ContainerName"];
@@ -104,12 +109,33 @@ public class ProcessEventFunction
                 return;
             }
 
-            // Create Blob client
+            // -----------------------------
+            // Blob setup
+            // -----------------------------
             var blobServiceClient = new BlobServiceClient(blobConnectionString);
             var blobContainerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
             await blobContainerClient.CreateIfNotExistsAsync();
 
+            // -----------------------------
+            // 🔥 IDEMPOTENCY CHECK
+            // -----------------------------
+            // Check if this event has already been processed
+            var processedPath = $"processed-events/{eventItem.Id}.json";
+            var processedBlob = blobContainerClient.GetBlobClient(processedPath);
+
+            if (await processedBlob.ExistsAsync())
+            {
+                _logger.LogWarning(
+                    "Duplicate event detected. Event {EventId} has already been processed. Skipping.",
+                    eventItem.Id);
+
+                return;
+            }
+
+            // -----------------------------
+            // Main processing (persist event)
+            // -----------------------------
             var blobPath = $"events/{eventItem.CreatedAt:yyyy/MM/dd}/{eventItem.Id}.json";
             var blobClient = blobContainerClient.GetBlobClient(blobPath);
 
@@ -121,13 +147,30 @@ public class ProcessEventFunction
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
             await blobClient.UploadAsync(stream, overwrite: true);
 
-            // 🔥 Persistence log (important for debugging pipeline completion)
             _logger.LogInformation(
                 "Event {EventId} persisted to Blob Storage at {BlobPath}.",
                 eventItem.Id,
                 blobPath);
 
-            // Simulate failure scenario for testing retries / DLQ
+            // -----------------------------
+            // 🔥 WRITE IDEMPOTENCY MARKER
+            // -----------------------------
+            var markerContent = JsonSerializer.Serialize(new
+            {
+                eventId = eventItem.Id,
+                processedAt = DateTime.UtcNow
+            });
+
+            using var markerStream = new MemoryStream(Encoding.UTF8.GetBytes(markerContent));
+            await processedBlob.UploadAsync(markerStream, overwrite: true);
+
+            _logger.LogInformation(
+                "Idempotency marker written for event {EventId}",
+                eventItem.Id);
+
+            // -----------------------------
+            // Failure simulation (for retry testing)
+            // -----------------------------
             if (eventItem.Type == "force-fail")
             {
                 _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
