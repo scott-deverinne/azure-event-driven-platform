@@ -5,10 +5,11 @@ using Microsoft.Extensions.Logging.ApplicationInsights;
 
 var builder = WebApplication.CreateBuilder(args);
 
-Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
-Console.WriteLine($"Queue: {builder.Configuration["ServiceBus:QueueName"]}");
-
-// Load environment-specific configuration files
+// -----------------------------
+// Configuration Setup
+// -----------------------------
+// Load base config, environment-specific config, then environment variables.
+// Environment variables are loaded last so Azure App Settings override appsettings.json.
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
     .AddJsonFile(
@@ -16,6 +17,9 @@ builder.Configuration
         optional: true,
         reloadOnChange: true)
     .AddEnvironmentVariables();
+
+Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
+Console.WriteLine($"Queue: {builder.Configuration["ServiceBus:QueueName"]}");
 
 // Registers MVC controllers for API endpoints
 builder.Services.AddControllers();
@@ -27,12 +31,12 @@ builder.Services.AddSwaggerGen();
 // Adds Application Insights for request telemetry and monitoring
 builder.Services.AddApplicationInsightsTelemetry();
 
-// enables ILogger → App Insights (this is what you're missing)
+// Enables ILogger logs to flow into Application Insights
 builder.Logging.AddApplicationInsights();
 builder.Logging.SetMinimumLevel(LogLevel.Information);
 
 // -----------------------------
-// Configuration Setup
+// Service Bus Configuration
 // -----------------------------
 
 var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
