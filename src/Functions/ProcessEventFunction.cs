@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using Azure.Messaging.ServiceBus; // Needed for ServiceBusReceivedMessage
 using Azure.Storage.Blobs;
 using Functions.Models;
 using Microsoft.Azure.Functions.Worker;
@@ -22,19 +21,14 @@ public class ProcessEventFunction
 
     [Function("ProcessEventFunction")]
     public async Task Run(
-        // Access full Service Bus message (needed for CorrelationId + metadata)
+        // Use string binding for reliable Service Bus trigger indexing
         [ServiceBusTrigger("%ServiceBus:QueueName%", Connection = "ServiceBusConnection")]
-        ServiceBusReceivedMessage message)
+        string message)
     {
         try
         {
             // Extract raw message body
-            var messageBody = message.Body.ToString();
-
-            // Log correlation ID for distributed tracing
-            _logger.LogInformation(
-                "Received message with CorrelationId: {CorrelationId}",
-                message.CorrelationId);
+            var messageBody = message;
 
             _logger.LogInformation("Received raw message: {Message}", messageBody);
 
@@ -118,7 +112,7 @@ public class ProcessEventFunction
             await blobContainerClient.CreateIfNotExistsAsync();
 
             // -----------------------------
-            // 🔥 IDEMPOTENCY CHECK
+            // Idempotency check
             // -----------------------------
             // Check if this event has already been processed
             var processedPath = $"processed-events/{eventItem.Id}.json";
@@ -134,7 +128,7 @@ public class ProcessEventFunction
             }
 
             // -----------------------------
-            // Main processing (persist event)
+            // Main processing: persist event
             // -----------------------------
             var blobPath = $"events/{eventItem.CreatedAt:yyyy/MM/dd}/{eventItem.Id}.json";
             var blobClient = blobContainerClient.GetBlobClient(blobPath);
@@ -153,8 +147,9 @@ public class ProcessEventFunction
                 blobPath);
 
             // -----------------------------
-            // 🔥 WRITE IDEMPOTENCY MARKER
+            // Write idempotency marker
             // -----------------------------
+            // Marker is written only after successful processing
             var markerContent = JsonSerializer.Serialize(new
             {
                 eventId = eventItem.Id,
@@ -169,7 +164,7 @@ public class ProcessEventFunction
                 eventItem.Id);
 
             // -----------------------------
-            // Failure simulation (for retry testing)
+            // Failure simulation for retry testing
             // -----------------------------
             if (eventItem.Type == "force-fail")
             {
