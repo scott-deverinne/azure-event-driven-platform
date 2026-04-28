@@ -24,6 +24,7 @@ public class EventsController : ControllerBase
         _logger = logger;
     }
 
+    // Basic health check endpoint
     [HttpGet("health")]
     public IActionResult Health()
     {
@@ -33,12 +34,32 @@ public class EventsController : ControllerBase
         });
     }
 
+    // Debug endpoint to verify live configuration values
+    [HttpGet("config-check")]
+    public IActionResult ConfigCheck()
+    {
+        return Ok(new
+        {
+            environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"),
+
+            // Value resolved via IConfiguration
+            queueName_from_config = _configuration["ServiceBus:QueueName"],
+
+            // Raw environment variable from Azure
+            queueName_env_raw = Environment.GetEnvironmentVariable("ServiceBus__QueueName"),
+
+            // Check Service Bus connection exists
+            hasServiceBusConnection = !string.IsNullOrWhiteSpace(_configuration["ServiceBusConnection"])
+        });
+    }
+
+    // Main endpoint: send event to Service Bus
     [HttpPost]
     public async Task<IActionResult> CreateEvent([FromBody] EventItem item)
     {
         var queueName = _configuration["ServiceBus:QueueName"];
 
-        // Logs incoming API event to enable traceability and correlation with downstream processing
+        // Log incoming event
         _logger.LogInformation(
             "Received API event {EventId}. Type: {Type}. Data: {Data}",
             item.Id,
@@ -56,12 +77,12 @@ public class EventsController : ControllerBase
         var messageBody = JsonSerializer.Serialize(item);
         var message = new ServiceBusMessage(messageBody);
 
-        // Add correlation ID / distributed tracing
+        // Correlation / tracing metadata
         message.CorrelationId = item.Id.ToString();
         message.ApplicationProperties["EventId"] = item.Id.ToString();
         message.ApplicationProperties["EventType"] = item.Type;
 
-        // Logs before publishing to Service Bus to track outbound dependency
+        // Log before sending
         _logger.LogInformation(
             "Publishing event {EventId} to Service Bus queue {QueueName}",
             item.Id,
@@ -69,6 +90,7 @@ public class EventsController : ControllerBase
 
         await sender.SendMessageAsync(message);
 
+        // Log after sending
         _logger.LogInformation(
             "Published event {EventId} successfully to queue {QueueName}",
             item.Id,
