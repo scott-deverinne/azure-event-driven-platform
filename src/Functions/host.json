@@ -1,12 +1,18 @@
 {
     "version": "2.0",
     "logging": {
-        "applicationInsights": {
-            "samplingSettings": {
-                "isEnabled": true,
-                "excludedTypes": "Request"
-            },
-            "enableLiveMetricsFilters": true
-        }
+      "applicationInsights": {
+        "samplingSettings": {
+          "isEnabled": true,
+          "excludedTypes": "Request"
+        },
+        "enableLiveMetricsFilters": true
+      }
+    },
+    "extensions": {
+      "serviceBus": {
+        "maxConcurrentCalls": 1,
+        "maxAutoLockRenewalDuration": "00:05:00"
+      }
     }
-}
+  }
