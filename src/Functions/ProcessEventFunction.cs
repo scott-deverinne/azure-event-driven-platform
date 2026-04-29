@@ -43,6 +43,10 @@ public class ProcessEventFunction
 
             _logger.LogInformation("Received raw message: {Message}", messageBody);
 
+            _logger.LogWarning(
+                "FUNCTION TRIGGERED - QueueName: {QueueName}",
+                _configuration["ServiceBus:QueueName"]);
+
             EventItem? eventItem;
 
             try
@@ -86,8 +90,8 @@ public class ProcessEventFunction
             // -----------------------------
             // Controlled failure simulation
             // -----------------------------
-            // This intentionally fails before writing the idempotency marker.
-            // That allows Azure Functions retry behaviour to be tested correctly.
+            // This intentionally fails before any side effects.
+            // No event blob or idempotency marker should be written for this test case.
             if (eventItem.Type == "force-fail")
             {
                 _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
