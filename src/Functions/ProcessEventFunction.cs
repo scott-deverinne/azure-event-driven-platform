@@ -20,13 +20,24 @@ public class ProcessEventFunction
     }
 
     [Function("ProcessEventFunction")]
+    [FixedDelayRetry(3, "00:00:05")]
     public async Task Run(
         // Use string binding for reliable Service Bus trigger indexing
         [ServiceBusTrigger("%ServiceBus:QueueName%", Connection = "ServiceBusConnection")]
-        string message)
+        string message,
+        FunctionContext context)
     {
         try
         {
+            // Log retry attempt details when Azure Functions retries this execution
+            if (context.RetryContext is not null)
+            {
+                _logger.LogWarning(
+                    "Retry attempt {RetryCount} of {MaxRetryCount}.",
+                    context.RetryContext.RetryCount,
+                    context.RetryContext.MaxRetryCount);
+            }
+
             // Extract raw message body
             var messageBody = message;
 
@@ -71,6 +82,17 @@ public class ProcessEventFunction
                 eventItem.Type,
                 eventItem.Data,
                 eventItem.CreatedAt);
+
+            // -----------------------------
+            // Controlled failure simulation
+            // -----------------------------
+            // This intentionally fails before writing the idempotency marker.
+            // That allows Azure Functions retry behaviour to be tested correctly.
+            if (eventItem.Type == "force-fail")
+            {
+                _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
+                throw new Exception("Simulated failure");
+            }
 
             // -----------------------------
             // Configuration
@@ -162,15 +184,6 @@ public class ProcessEventFunction
             _logger.LogInformation(
                 "Idempotency marker written for event {EventId}",
                 eventItem.Id);
-
-            // -----------------------------
-            // Failure simulation for retry testing
-            // -----------------------------
-            if (eventItem.Type == "force-fail")
-            {
-                _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
-                throw new Exception("Simulated failure");
-            }
 
             _logger.LogInformation("Event {EventId} processed successfully.", eventItem.Id);
         }
