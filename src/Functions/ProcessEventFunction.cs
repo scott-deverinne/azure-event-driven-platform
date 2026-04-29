@@ -20,7 +20,6 @@ public class ProcessEventFunction
     }
 
     [Function("ProcessEventFunction")]
-    [FixedDelayRetry(3, "00:00:05")]
     public async Task Run(
         // Use string binding for reliable Service Bus trigger indexing
         [ServiceBusTrigger("%ServiceBus:QueueName%", Connection = "ServiceBusConnection")]
