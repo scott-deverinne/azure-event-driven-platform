@@ -72,7 +72,22 @@ public class ReplayController : ControllerBase
         // -----------------------------
         await using var sender = _serviceBusClient.CreateSender(queueName);
 
-        var message = new ServiceBusMessage(json)
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        var replayPayload = new
+        {
+            id = root.GetProperty("id").GetString(),
+            type = "replayed-event",
+            data = root.GetProperty("data").GetString(),
+            createdAt = root.TryGetProperty("createdAt", out var createdAt)
+                ? createdAt.GetDateTime()
+                : DateTime.UtcNow
+        };
+
+        var replayJson = JsonSerializer.Serialize(replayPayload);
+
+        var message = new ServiceBusMessage(replayJson)
         {
             CorrelationId = eventId
         };
