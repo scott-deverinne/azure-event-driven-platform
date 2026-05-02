@@ -50,7 +50,10 @@ public class ProcessEventFunction
 
             try
             {
-                eventItem = JsonSerializer.Deserialize<EventItem>(messageBody);
+                eventItem = JsonSerializer.Deserialize<EventItem>(messageBody, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
             }
             catch (JsonException ex)
             {

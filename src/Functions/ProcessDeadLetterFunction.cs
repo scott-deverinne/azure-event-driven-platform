@@ -33,7 +33,10 @@ public class ProcessDeadLetterFunction
 
             try
             {
-                eventItem = JsonSerializer.Deserialize<EventItem>(message);
+                eventItem = JsonSerializer.Deserialize<EventItem>(message, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
             }
             catch (JsonException ex)
             {
