@@ -58,3 +58,9 @@ appsettings.Development.json
 
 # Azure Functions local settings
 local.settings.json
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl

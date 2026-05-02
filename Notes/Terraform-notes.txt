@@ -1,0 +1,93 @@
+Terraform Notes
+
+What is Terraform?
+* Infrastructure as Code (IaC) tool
+* Allows you to define, provision, and manage cloud infrastructure using code. 
+* Instead of manually creating resources in the Azure Portal, you write declarative configuration files 
+    * (in HCL – HashiCorp Configuration Language)
+    * describe the desired state of the system's infrastructure. 
+    * Terraform then creates, updates, or deletes resources to match that state.
+
+---
+
+Why is it helpful to use it in the system?
+In this Azure event-driven platform, Terraform brings several key advantages:
+
+* Consistency: 
+    * This system's architecture (Service Bus, Functions, Storage, API, etc.) can be recreated exactly the same across environments.
+* Repeatability: 
+    * You can destroy and rebuild environments easily, which is critical for testing and reliability.
+* Version control: 
+    * Infrastructure is stored in Git alongside the system's application code, giving full history and traceability.
+* Automation: 
+    * Enables integration with CI/CD pipelines for automated deployments.
+* Reduced human error: 
+    * Eliminates manual setup mistakes in the Azure Portal.
+* Documentation: 
+    * The Terraform code itself acts as living documentation of the system's system architecture.
+
+---
+
+What can it allow the system to do in the future?
+
+* Multi-environment deployments:
+  Easily deploy separate environments (dev, staging, production) with different configurations.
+
+* Full platform provisioning:
+  Automatically deploy all core components:
+
+  * Resource Groups
+  * Service Bus (queues/topics)
+  * Storage Accounts (Blob containers)
+  * Function Apps
+  * App Services (API)
+  * Application Insights
+  * Key Vault
+  * Managed Identities
+
+* CI/CD integration:
+  Infrastructure can be deployed automatically via Azure DevOps or GitHub Actions.
+
+* Scalability:
+  Quickly scale out the system or replicate it in new regions.
+
+* Disaster recovery:
+  Recreate infrastructure rapidly in case of failure.
+
+* Secure architecture:
+  Enforce best practices like Managed Identity and Key Vault from the start.
+
+---
+
+Terraform workflow:
+
+  1. terraform init → initializes providers
+  2. terraform plan → shows what will change
+  3. terraform apply → applies changes
+
+---
+
+State file:
+  Terraform keeps a state file (.tfstate) that tracks real infrastructure.
+  In production, this should be stored remotely (e.g. Azure Storage) rather than locally.
+
+---
+
+Modular design:
+  As the project grows, split infrastructure into modules (e.g. service-bus, storage, api, functions).
+
+---
+
+Naming conventions:
+  Use consistent naming for resources (e.g. rg-event-platform-dev, sb-event-platform-dev).
+
+---
+
+Environment variables:
+  Use variables.tf and terraform.tfvars to manage different environments cleanly.
+
+---
+
+Security best practice:
+  Avoid hardcoding secrets — use Azure Key Vault and Managed Identity.
+
