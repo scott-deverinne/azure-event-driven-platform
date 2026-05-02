@@ -23,9 +23,6 @@ public class ReplayController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Replays a dead-lettered event back into the main queue
-    /// </summary>
     [HttpPost("{eventId}")]
     public async Task<IActionResult> ReplayEvent(string eventId)
     {
@@ -41,9 +38,6 @@ public class ReplayController : ControllerBase
             return StatusCode(500, new { message = "Configuration error" });
         }
 
-        // -----------------------------
-        // Locate dead-letter blob
-        // -----------------------------
         var blobServiceClient = new BlobServiceClient(blobConnectionString);
         var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
 
@@ -52,40 +46,30 @@ public class ReplayController : ControllerBase
 
         if (!await blobClient.ExistsAsync())
         {
-            _logger.LogWarning("Replay failed. Dead-letter event {EventId} not found.", eventId);
             return NotFound(new { message = "Dead-letter event not found" });
         }
 
-        // -----------------------------
-        // Read event payload
-        // -----------------------------
         var download = await blobClient.DownloadContentAsync();
         var json = download.Value.Content.ToString();
-
-        _logger.LogInformation(
-            "Replaying dead-letter event {EventId} from blob {BlobPath}",
-            eventId,
-            blobPath);
-
-        // -----------------------------
-        // Send back to Service Bus
-        // -----------------------------
-        await using var sender = _serviceBusClient.CreateSender(queueName);
 
         using var document = JsonDocument.Parse(json);
         var root = document.RootElement;
 
+        var id = GetString(root, "id", "Id") ?? eventId;
+        var data = GetString(root, "data", "Data") ?? "replayed from dead letter";
+        var createdAt = GetDateTime(root, "createdAt", "CreatedAt") ?? DateTime.UtcNow;
+
         var replayPayload = new
         {
-            id = root.GetProperty("id").GetString(),
+            id,
             type = "replayed-event",
-            data = root.GetProperty("data").GetString(),
-            createdAt = root.TryGetProperty("createdAt", out var createdAt)
-                ? createdAt.GetDateTime()
-                : DateTime.UtcNow
+            data,
+            createdAt
         };
 
         var replayJson = JsonSerializer.Serialize(replayPayload);
+
+        await using var sender = _serviceBusClient.CreateSender(queueName);
 
         var message = new ServiceBusMessage(replayJson)
         {
@@ -105,7 +89,34 @@ public class ReplayController : ControllerBase
         return Ok(new
         {
             message = "Event replayed successfully",
-            eventId = eventId
+            eventId
         });
+    }
+
+    private static string? GetString(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(name, out var value))
+            {
+                return value.GetString();
+            }
+        }
+
+        return null;
+    }
+
+    private static DateTime? GetDateTime(JsonElement root, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (root.TryGetProperty(name, out var value) &&
+                value.TryGetDateTime(out var dateTime))
+            {
+                return dateTime;
+            }
+        }
+
+        return null;
     }
 }
