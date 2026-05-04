@@ -86,3 +86,104 @@ resource "azurerm_application_insights" "main" {
 
   tags = local.common_tags
 }
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "main" {
+  name                = "event-platform-kv"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+
+  tenant_id = data.azurerm_client_config.current.tenant_id
+
+  sku_name = "standard"
+
+  purge_protection_enabled   = false
+  soft_delete_retention_days = 90
+
+  tags = local.common_tags
+}
+resource "azurerm_service_plan" "api" {
+  name                = "ASP-eventplatformrg-a2f8"
+  location            = "westeurope"
+  resource_group_name = azurerm_resource_group.main.name
+
+  os_type  = "Windows"
+  sku_name = "F1"
+
+  tags = local.common_tags
+}
+
+resource "azurerm_service_plan" "function" {
+  name                = "ASP-eventplatformrg-9edf"
+  location            = "westeurope"
+  resource_group_name = azurerm_resource_group.main.name
+
+  os_type  = "Windows"
+  sku_name = "Y1"
+
+  tags = local.common_tags
+}
+resource "azurerm_windows_web_app" "api" {
+  name                = "event-platform-api-scott-dev"
+  location            = "westeurope"
+  resource_group_name = azurerm_resource_group.main.name
+  service_plan_id     = azurerm_service_plan.api.id
+
+  https_only = true
+
+  client_affinity_enabled                  = true
+  ftp_publish_basic_authentication_enabled = false
+  webdeploy_publish_basic_authentication_enabled = false
+
+  site_config {
+    always_on  = false
+    ftps_state = "FtpsOnly"
+  }
+
+  tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [
+      app_settings,
+      sticky_settings,
+      tags["hidden-link: /app-insights-resource-id"],
+      site_config[0].virtual_application,
+    ]
+  }
+}
+resource "azurerm_windows_function_app" "function" {
+  name                = "event-platform-func-scott-dev"
+  location            = "westeurope"
+  resource_group_name = azurerm_resource_group.main.name
+  service_plan_id     = azurerm_service_plan.function.id
+
+  storage_account_name       = azurerm_storage_account.main.name
+  storage_account_access_key = azurerm_storage_account.main.primary_access_key
+
+  builtin_logging_enabled = false
+  client_certificate_mode = "Required"
+
+  ftp_publish_basic_authentication_enabled       = false
+  webdeploy_publish_basic_authentication_enabled = false
+
+  site_config {
+    ftps_state        = "FtpsOnly"
+    use_32_bit_worker = false
+
+    application_stack {
+      dotnet_version = "v8.0"
+    }
+  }
+
+  tags = local.common_tags
+
+  lifecycle {
+    ignore_changes = [
+      app_settings,
+      tags["hidden-link: /app-insights-resource-id"],
+      site_config[0].application_insights_connection_string,
+      site_config[0].cors,
+    ]
+  }
+}
