@@ -14,3 +14,11 @@ provider "azurerm" {
 
   subscription_id = var.subscription_id
 }
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "event-platform-rg"
+    storage_account_name = "eventplatformstoragesdd"
+    container_name       = "tfstate"
+    key                  = "dev.terraform.tfstate"
+  }
+}
