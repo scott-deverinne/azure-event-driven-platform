@@ -105,12 +105,6 @@ resource "azurerm_key_vault" "main" {
   soft_delete_retention_days = 90
 
   tags = local.common_tags
-
-  lifecycle {
-    ignore_changes = [
-      contact
-    ]
-  }
 }
 
 resource "azurerm_service_plan" "api" {
@@ -143,28 +137,53 @@ resource "azurerm_windows_web_app" "api" {
 
   https_only = true
 
-  client_affinity_enabled                       = true
-  ftp_publish_basic_authentication_enabled      = false
+  client_affinity_enabled                        = true
+  ftp_publish_basic_authentication_enabled       = false
   webdeploy_publish_basic_authentication_enabled = false
+
+  app_settings = {
+    "ASPNETCORE_ENVIRONMENT" = "Development"
+
+    "ServiceBus__QueueName"      = "event-queue-dev"
+    "BlobStorage__ContainerName" = "events-dev"
+
+    "ServiceBusConnection"  = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/servicebus-connection/)"
+    "BlobStorageConnection" = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/storage-connection/)"
+
+    "APPINSIGHTS_INSTRUMENTATIONKEY"        = azurerm_application_insights.main.instrumentation_key
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.main.connection_string
+
+    "APPINSIGHTS_PROFILERFEATURE_VERSION"        = "1.0.0"
+    "APPINSIGHTS_SNAPSHOTFEATURE_VERSION"        = "1.0.0"
+    "ApplicationInsightsAgent_EXTENSION_VERSION" = "~2"
+    "DiagnosticServices_EXTENSION_VERSION"       = "~3"
+    "InstrumentationEngine_EXTENSION_VERSION"    = "disabled"
+    "SnapshotDebugger_EXTENSION_VERSION"         = "disabled"
+
+    "XDT_MicrosoftApplicationInsights_BaseExtensions" = "disabled"
+    "XDT_MicrosoftApplicationInsights_Java"           = "1"
+    "XDT_MicrosoftApplicationInsights_Mode"           = "recommended"
+    "XDT_MicrosoftApplicationInsights_NodeJS"         = "1"
+    "XDT_MicrosoftApplicationInsights_PreemptSdk"     = "disabled"
+  }
 
   site_config {
     always_on  = false
     ftps_state = "FtpsOnly"
   }
 
+  identity {
+    type = "SystemAssigned"
+  }
+
   tags = local.common_tags
 
   lifecycle {
     ignore_changes = [
-      app_settings,
       sticky_settings,
       tags["hidden-link: /app-insights-resource-id"],
       site_config[0].virtual_application,
     ]
-  }
-
-  identity {
-    type = "SystemAssigned"
   }
 }
 
@@ -183,6 +202,24 @@ resource "azurerm_windows_function_app" "function" {
   ftp_publish_basic_authentication_enabled       = false
   webdeploy_publish_basic_authentication_enabled = false
 
+  app_settings = {
+    "AzureWebJobs.EventProcessorFunction.Disabled" = "1"
+    "AzureWebJobs.ProcessEventFunction.Disabled"   = "0"
+    "AzureWebJobsSecretStorageType"                = "files"
+
+    "ServiceBus__QueueName"      = "event-queue-dev"
+    "BlobStorage__ContainerName" = "events-dev"
+
+    "ServiceBusConnection"  = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/servicebus-connection/)"
+    "BlobStorageConnection" = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/storage-connection/)"
+
+    "WEBSITE_ENABLE_SYNC_UPDATE_SITE"        = "true"
+    "WEBSITE_RUN_FROM_PACKAGE"               = "1"
+    "WEBSITE_USE_PLACEHOLDER_DOTNETISOLATED" = "1"
+
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.main.connection_string
+  }
+
   site_config {
     ftps_state        = "FtpsOnly"
     use_32_bit_worker = false
@@ -192,26 +229,32 @@ resource "azurerm_windows_function_app" "function" {
     }
   }
 
+  identity {
+    type = "SystemAssigned"
+  }
+
   tags = local.common_tags
 
   lifecycle {
     ignore_changes = [
-      app_settings,
+      app_settings["APPLICATIONINSIGHTS_CONNECTION_STRING"],
+      sticky_settings,
       tags["hidden-link: /app-insights-resource-id"],
       site_config[0].application_insights_connection_string,
       site_config[0].cors,
     ]
   }
-
-  identity {
-    type = "SystemAssigned"
-  }
 }
 
-resource "azurerm_key_vault_access_policy" "api" {
+# Secrets are created outside Terraform using Azure CLI due to Azure Key Vault auth/token issues.
+# Existing secrets:
+# - servicebus-connection
+# - storage-connection
+
+resource "azurerm_key_vault_access_policy" "function" {
   key_vault_id = azurerm_key_vault.main.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_windows_web_app.api.identity[0].principal_id
+  object_id    = azurerm_windows_function_app.function.identity[0].principal_id
 
   secret_permissions = [
     "Get",
@@ -219,10 +262,10 @@ resource "azurerm_key_vault_access_policy" "api" {
   ]
 }
 
-resource "azurerm_key_vault_access_policy" "function" {
+resource "azurerm_key_vault_access_policy" "api" {
   key_vault_id = azurerm_key_vault.main.id
   tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_windows_function_app.function.identity[0].principal_id
+  object_id    = azurerm_windows_web_app.api.identity[0].principal_id
 
   secret_permissions = [
     "Get",
@@ -248,25 +291,3 @@ resource "azurerm_key_vault_access_policy" "terraform_user" {
     "ManageContacts"
   ]
 }
-
-# Temporarily managing secrets outside Terraform due to Azure Key Vault auth issue
-#
-# resource "azurerm_key_vault_secret" "servicebus" {
-#   name         = "servicebus-connection"
-#   value        = azurerm_servicebus_namespace.main.default_primary_connection_string
-#   key_vault_id = azurerm_key_vault.main.id
-#
-#   depends_on = [
-#     azurerm_key_vault_access_policy.terraform_user
-#   ]
-# }
-#
-# resource "azurerm_key_vault_secret" "storage" {
-#   name         = "storage-connection"
-#   value        = azurerm_storage_account.main.primary_connection_string
-#   key_vault_id = azurerm_key_vault.main.id
-#
-#   depends_on = [
-#     azurerm_key_vault_access_policy.terraform_user
-#   ]
-# }
