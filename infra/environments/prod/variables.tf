@@ -1,19 +1,22 @@
 variable "subscription_id" {
-  type = string
+  description = "Azure subscription ID where resources will be managed."
+  type        = string
 }
 
 variable "location" {
-  type = string
+  description = "Azure region for resources."
+  type        = string
 }
 
 variable "environment" {
-  type = string
+  description = "Environment name, for example dev, test, or prod."
+  type        = string
 }
 
 variable "project_name" {
-  type = string
+  description = "Project name used for naming and tagging Azure resources."
+  type        = string
 }
-
 variable "resource_group_name" {
   type = string
 }
@@ -56,29 +59,4 @@ variable "function_app_name" {
 
 variable "blob_container_name" {
   type = string
-}
-
-variable "api_service_plan_sku_name" {
-  type    = string
-  default = "F1"
-}
-
-variable "function_service_plan_sku_name" {
-  type    = string
-  default = "Y1"
-}
-
-variable "storage_account_replication_type" {
-  type    = string
-  default = "RAGRS"
-}
-
-variable "servicebus_sku" {
-  type    = string
-  default = "Standard"
-}
-
-variable "aspnetcore_environment" {
-  type    = string
-  default = "Development"
 }
