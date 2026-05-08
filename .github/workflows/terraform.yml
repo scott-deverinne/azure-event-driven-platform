@@ -32,7 +32,6 @@ jobs:
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    environment: dev
 
     defaults:
       run:
@@ -69,7 +68,6 @@ jobs:
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
-    environment: dev
     needs: plan
     if: github.event_name == 'workflow_dispatch'
 
