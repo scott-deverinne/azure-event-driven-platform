@@ -7,19 +7,19 @@ locals {
 }
 
 resource "azurerm_resource_group" "main" {
-  name     = "event-platform-rg"
+  name     = var.resource_group_name
   location = var.location
 
   tags = local.common_tags
 }
 
 resource "azurerm_storage_account" "main" {
-  name                = "eventplatformstoragesdd"
+  name                = var.storage_account_name
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
 
-  account_tier             = "Standard"
-  account_replication_type = "RAGRS"
+  account_tier             = var.servicebus_sku
+  account_replication_type = var.storage_account_replication_type
 
   allow_nested_items_to_be_public  = false
   cross_tenant_replication_enabled = false
@@ -46,17 +46,17 @@ resource "azurerm_storage_container" "dead_letter" {
 }
 
 resource "azurerm_servicebus_namespace" "main" {
-  name                = "event-platform-sb-scott"
+  name                = var.servicebus_namespace_name
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
-  sku = "Standard"
+  sku = var.servicebus_sku
 
   tags = local.common_tags
 }
 
 resource "azurerm_servicebus_queue" "events" {
-  name         = "event-queue-dev"
+  name         = var.servicebus_queue_name
   namespace_id = azurerm_servicebus_namespace.main.id
 
   lock_duration = "PT1M"
@@ -78,7 +78,7 @@ resource "azurerm_servicebus_queue" "events" {
 }
 
 resource "azurerm_application_insights" "main" {
-  name                = "event-platform-ai"
+  name                = var.application_insights_name
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
@@ -93,7 +93,7 @@ resource "azurerm_application_insights" "main" {
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_key_vault" "main" {
-  name                = "event-platform-kv"
+  name                = var.key_vault_name
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
 
@@ -108,29 +108,29 @@ resource "azurerm_key_vault" "main" {
 }
 
 resource "azurerm_service_plan" "api" {
-  name                = "ASP-eventplatformrg-a2f8"
+  name                = var.api_service_plan_name
   location            = "westeurope"
   resource_group_name = azurerm_resource_group.main.name
 
   os_type  = "Windows"
-  sku_name = "F1"
+  sku_name = var.api_service_plan_sku_name
 
   tags = local.common_tags
 }
 
 resource "azurerm_service_plan" "function" {
-  name                = "ASP-eventplatformrg-9edf"
+  name                = var.function_service_plan_name
   location            = "westeurope"
   resource_group_name = azurerm_resource_group.main.name
 
   os_type  = "Windows"
-  sku_name = "Y1"
+  sku_name = var.function_service_plan_sku_name
 
   tags = local.common_tags
 }
 
 resource "azurerm_windows_web_app" "api" {
-  name                = "event-platform-api-scott-dev"
+  name                = var.api_app_name
   location            = "westeurope"
   resource_group_name = azurerm_resource_group.main.name
   service_plan_id     = azurerm_service_plan.api.id
@@ -142,13 +142,13 @@ resource "azurerm_windows_web_app" "api" {
   webdeploy_publish_basic_authentication_enabled = false
 
   app_settings = {
-    "ASPNETCORE_ENVIRONMENT" = "Development"
+    "ASPNETCORE_ENVIRONMENT" = var.aspnetcore_environment
 
-    "ServiceBus__QueueName"      = "event-queue-dev"
-    "BlobStorage__ContainerName" = "events-dev"
+    "ServiceBus__QueueName"      = var.servicebus_queue_name
+    "BlobStorage__ContainerName" = var.blob_container_name
 
-    "ServiceBusConnection"  = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/servicebus-connection/)"
-    "BlobStorageConnection" = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/storage-connection/)"
+    "ServiceBusConnection"  = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/servicebus-connection/)"
+    "BlobStorageConnection" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/storage-connection/)"
 
     "APPINSIGHTS_INSTRUMENTATIONKEY"        = azurerm_application_insights.main.instrumentation_key
     "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.main.connection_string
@@ -188,7 +188,7 @@ resource "azurerm_windows_web_app" "api" {
 }
 
 resource "azurerm_windows_function_app" "function" {
-  name                = "event-platform-func-scott-dev"
+  name                = var.function_app_name
   location            = "westeurope"
   resource_group_name = azurerm_resource_group.main.name
   service_plan_id     = azurerm_service_plan.function.id
@@ -207,11 +207,11 @@ resource "azurerm_windows_function_app" "function" {
     "AzureWebJobs.ProcessEventFunction.Disabled"   = "0"
     "AzureWebJobsSecretStorageType"                = "files"
 
-    "ServiceBus__QueueName"      = "event-queue-dev"
-    "BlobStorage__ContainerName" = "events-dev"
+    "ServiceBus__QueueName"      = var.servicebus_queue_name
+    "BlobStorage__ContainerName" = var.blob_container_name
 
-    "ServiceBusConnection"  = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/servicebus-connection/)"
-    "BlobStorageConnection" = "@Microsoft.KeyVault(SecretUri=https://event-platform-kv.vault.azure.net/secrets/storage-connection/)"
+    "ServiceBusConnection"  = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/servicebus-connection/)"
+    "BlobStorageConnection" = "@Microsoft.KeyVault(SecretUri=https://${var.key_vault_name}.vault.azure.net/secrets/storage-connection/)"
 
     "WEBSITE_ENABLE_SYNC_UPDATE_SITE"        = "true"
     "WEBSITE_RUN_FROM_PACKAGE"               = "1"

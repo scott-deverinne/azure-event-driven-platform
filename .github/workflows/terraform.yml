@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - develop
+      - "feature/**"
     paths:
       - "infra/**"
       - ".github/workflows/terraform.yml"
@@ -35,7 +36,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: infra
+        working-directory: infra/environments/dev
 
     steps:
       - name: Checkout repository
@@ -73,7 +74,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: infra
+        working-directory: infra/environments/dev
 
     steps:
       - name: Checkout repository
