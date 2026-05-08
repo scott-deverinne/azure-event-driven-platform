@@ -9,6 +9,7 @@ on:
   push:
     branches:
       - develop
+      - "feature/**"
     paths:
       - "infra/**"
       - ".github/workflows/terraform.yml"
