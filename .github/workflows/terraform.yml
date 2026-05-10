@@ -4,14 +4,14 @@ on:
   pull_request:
     paths:
       - "infra/**"
-      - ".github/workflows/terraform.yml"
+      - ".github/workflows/**"
 
   push:
     branches:
       - develop
     paths:
       - "infra/**"
-      - ".github/workflows/terraform.yml"
+      - ".github/workflows/**"
 
   workflow_dispatch:
     inputs:
