@@ -4,23 +4,40 @@ on:
   pull_request:
     paths:
       - "infra/**"
-      - ".github/workflows/terraform.yml"
+      - ".github/workflows/**"
+
+  push:
+    branches:
+      - develop
+    paths:
+      - "infra/**"
+      - ".github/workflows/**"
 
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to apply"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - prod
 
 permissions:
   contents: read
   id-token: write
+  pull-requests: read
 
 jobs:
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
-    environment: dev
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
 
     defaults:
       run:
-        working-directory: infra/environments/dev
+        working-directory: infra/environments/${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
 
     steps:
       - name: Checkout repository
@@ -48,18 +65,18 @@ jobs:
         run: terraform validate
 
       - name: Terraform plan
-        run: terraform plan -refresh=false
+        run: terraform plan -refresh=false -out=tfplan
 
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
-    environment: dev
     needs: plan
     if: github.event_name == 'workflow_dispatch'
+    environment: ${{ inputs.environment }}
 
     defaults:
       run:
-        working-directory: infra/environments/dev
+        working-directory: infra/environments/${{ inputs.environment }}
 
     steps:
       - name: Checkout repository

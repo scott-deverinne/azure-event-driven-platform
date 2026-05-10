@@ -1,28 +1,52 @@
-name: Deploy Function App
+name: Deploy Function App to Azure
 
 on:
   push:
     branches:
+      - main
       - develop
     paths:
       - "src/Functions/**"
       - ".github/workflows/deploy-function.yml"
 
-  workflow_dispatch:
-
 permissions:
-  contents: read
   id-token: write
+  contents: read
 
 jobs:
-  deploy-function:
-    name: Build and Deploy Function App
+  build-and-deploy:
     runs-on: ubuntu-latest
-    environment: dev
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore Function dependencies
+        run: dotnet restore src/Functions/Functions.csproj
+
+      - name: Build Function
+        run: dotnet build src/Functions/Functions.csproj --configuration Release --no-restore
+
+      - name: Publish Function
+        run: dotnet publish src/Functions/Functions.csproj --configuration Release --output ./publish
+
+      - name: Set app name
+        id: vars
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "develop" ]; then
+            echo "app_name=event-platform-func-scott-dev" >> $GITHUB_OUTPUT
+          elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "app_name=event-platform-func-scott-prod" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported branch: ${GITHUB_REF_NAME}"
+            exit 1
+          fi
 
       - name: Azure login with OIDC
         uses: azure/login@v2
@@ -31,25 +55,8 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
-
-      - name: Restore
-        run: dotnet restore src/Functions/Functions.csproj
-
-      - name: Build
-        run: dotnet build src/Functions/Functions.csproj --configuration Release --no-restore
-
-      - name: Publish Function App
-        run: |
-          dotnet publish src/Functions/Functions.csproj \
-            --configuration Release \
-            --output ./publish/function
-
-      - name: Deploy Function App to Azure
+      - name: Deploy to Azure Function App
         uses: Azure/functions-action@v1
         with:
-          app-name: event-platform-func-scott-dev
-          package: ./publish/function
+          app-name: ${{ steps.vars.outputs.app_name }}
+          package: ./publish
