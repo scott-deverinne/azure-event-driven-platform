@@ -6,8 +6,8 @@ on:
       - main
       - develop
     paths:
-      - 'src/Api/**'
-      - '.github/workflows/deploy-api.yml'
+      - "src/Api/**"
+      - ".github/workflows/deploy-api.yml"
 
 permissions:
   id-token: write
@@ -16,6 +16,7 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Checkout repository
@@ -24,7 +25,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
 
       - name: Restore API dependencies
         run: dotnet restore src/Api/Api.csproj
@@ -40,8 +41,11 @@ jobs:
         run: |
           if [ "${GITHUB_REF_NAME}" = "develop" ]; then
             echo "app_name=event-platform-api-scott-dev" >> $GITHUB_OUTPUT
+          elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "app_name=event-platform-api-scott-prod" >> $GITHUB_OUTPUT
           else
-            echo "app_name=event-platform-api-scott" >> $GITHUB_OUTPUT
+            echo "Unsupported branch: ${GITHUB_REF_NAME}"
+            exit 1
           fi
 
       - name: Azure login with OIDC
