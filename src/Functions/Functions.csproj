@@ -45,4 +45,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CloudNativePlatform.Contracts\CloudNativePlatform.Contracts.csproj" />
+  </ItemGroup>
+
 </Project>

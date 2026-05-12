@@ -1,0 +1,13 @@
+{
+  "eventId": "evt-refund-issued-001",
+  "correlationId": "corr-002",
+  "eventType": "refund.issued",
+  "eventVersion": "1.0",
+  "occurredAtUtc": "2026-05-10T12:10:00Z",
+  "source": "refund-service",
+  "refundId": "ref-001",
+  "paymentId": "pay-001",
+  "refundAmount": 49.99,
+  "currency": "GBP",
+  "reason": "Customer requested partial refund"
+}

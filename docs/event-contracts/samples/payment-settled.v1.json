@@ -1,0 +1,13 @@
+{
+  "eventId": "evt-payment-settled-001",
+  "correlationId": "corr-001",
+  "eventType": "payment.settled",
+  "eventVersion": "1.0",
+  "occurredAtUtc": "2026-05-10T12:05:00Z",
+  "source": "payment-settlement-service",
+  "paymentId": "pay-001",
+  "settlementId": "set-001",
+  "settledAmount": 149.99,
+  "currency": "GBP",
+  "settledAtUtc": "2026-05-10T12:04:30Z"
+}

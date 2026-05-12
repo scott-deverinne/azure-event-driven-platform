@@ -1,0 +1,13 @@
+{
+  "eventId": "evt-fraud-check-requested-001",
+  "correlationId": "corr-003",
+  "eventType": "fraud-check.requested",
+  "eventVersion": "1.0",
+  "occurredAtUtc": "2026-05-10T12:15:00Z",
+  "source": "risk-orchestration-service",
+  "paymentId": "pay-002",
+  "customerId": "cust-002",
+  "amount": 999.99,
+  "currency": "GBP",
+  "riskLevel": "medium"
+}
