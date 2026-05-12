@@ -1,6 +1,6 @@
 name: Deploy Function App to Azure
 
-on:
+"on":
   push:
     branches:
       - main
@@ -16,7 +16,8 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+    environment:
+      name: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
     steps:
       - name: Checkout repository
