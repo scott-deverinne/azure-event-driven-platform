@@ -1,7 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using Azure.Storage.Blobs;
-using Functions.Models;
+// CONTRACTS CHANGE: removed Functions.Models because processing now uses the shared typed event contracts.
+using CloudNativePlatform.Contracts.Events;
+using CloudNativePlatform.Contracts.Serialization;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -46,57 +48,78 @@ public class ProcessEventFunction
                 "FUNCTION TRIGGERED - QueueName: {QueueName}",
                 _configuration["ServiceBus:QueueName"]);
 
-            EventItem? eventItem;
+            // CONTRACTS CHANGE:
+            // Deserialize into the shared FinancialEvent abstraction instead of the old local EventItem model.
+            FinancialEvent financialEvent;
 
             try
             {
-                eventItem = JsonSerializer.Deserialize<EventItem>(messageBody, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                financialEvent = FinancialEventSerializer.Deserialize(messageBody);
             }
-            catch (JsonException ex)
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException or NotSupportedException)
             {
-                _logger.LogError(ex, "Failed to deserialize Service Bus message.");
-                return;
+                _logger.LogError(ex, "Failed to deserialize typed financial event message.");
+                throw;
             }
 
             // -----------------------------
             // Validation
             // -----------------------------
-            if (eventItem is null)
+            // CONTRACTS CHANGE:
+            // Validation now checks common financial event metadata instead of old EventItem Type/Data fields.
+            if (financialEvent is null)
             {
-                _logger.LogWarning("Received null event after deserialization.");
+                _logger.LogWarning("Received null financial event after deserialization.");
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(eventItem.Type))
+            if (string.IsNullOrWhiteSpace(financialEvent.EventId))
             {
-                _logger.LogWarning("Event {EventId} is missing a type.", eventItem.Id);
+                _logger.LogWarning("Financial event is missing eventId.");
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(eventItem.Data))
+            if (string.IsNullOrWhiteSpace(financialEvent.EventType))
             {
-                _logger.LogWarning("Event {EventId} is missing data.", eventItem.Id);
+                _logger.LogWarning("Financial event {EventId} is missing eventType.", financialEvent.EventId);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(financialEvent.CorrelationId))
+            {
+                _logger.LogWarning("Financial event {EventId} is missing correlationId.", financialEvent.EventId);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(financialEvent.EventVersion))
+            {
+                _logger.LogWarning("Financial event {EventId} is missing eventVersion.", financialEvent.EventId);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(financialEvent.Source))
+            {
+                _logger.LogWarning("Financial event {EventId} is missing source.", financialEvent.EventId);
                 return;
             }
 
             _logger.LogInformation(
-                "Processing event {EventId}. Type: {Type}. Data: {Data}. CreatedAt: {CreatedAt}",
-                eventItem.Id,
-                eventItem.Type,
-                eventItem.Data,
-                eventItem.CreatedAt);
+                "Processing financial event {EventType}. EventId: {EventId}. CorrelationId: {CorrelationId}. OccurredAtUtc: {OccurredAtUtc}",
+                financialEvent.EventType,
+                financialEvent.EventId,
+                financialEvent.CorrelationId,
+                financialEvent.OccurredAtUtc);
 
             // -----------------------------
             // Controlled failure simulation
             // -----------------------------
             // This intentionally fails before any side effects.
             // No event blob or idempotency marker should be written for this test case.
-            if (eventItem.Type == "force-fail")
+            // CONTRACTS CHANGE:
+            // Failure simulation now uses the typed eventType field.
+            if (financialEvent.EventType == "force-fail")
             {
-                _logger.LogWarning("Simulating failure for event {EventId}", eventItem.Id);
+                _logger.LogWarning("Simulating failure for event {EventId}", financialEvent.EventId);
                 throw new Exception("Simulated failure");
             }
 
@@ -143,60 +166,119 @@ public class ProcessEventFunction
             // Idempotency check
             // -----------------------------
             // Check if this event has already been processed
-            var processedPath = $"processed-events/{eventItem.Id}.json";
+            // CONTRACTS CHANGE:
+            // Idempotency marker now uses financialEvent.EventId.
+            var processedPath = $"processed-events/{financialEvent.EventId}.json";
             var processedBlob = blobContainerClient.GetBlobClient(processedPath);
 
             if (await processedBlob.ExistsAsync())
             {
                 _logger.LogWarning(
-                    "Duplicate event detected. Event {EventId} has already been processed. Skipping.",
-                    eventItem.Id);
+                    "Duplicate financial event detected. Event {EventId} has already been processed. Skipping.",
+                    financialEvent.EventId);
 
                 return;
             }
 
+            // CONTRACTS CHANGE:
+            // Explicit typed event handling hook. This is where future business workflows branch safely by contract type.
+            await ProcessTypedEvent(financialEvent);
+
             // -----------------------------
             // Main processing: persist event
             // -----------------------------
-            var blobPath = $"events/{eventItem.CreatedAt:yyyy/MM/dd}/{eventItem.Id}.json";
+            // CONTRACTS CHANGE:
+            // Blob path now uses occurredAtUtc and eventId from the financial event contract.
+            var blobPath = $"events/{financialEvent.OccurredAtUtc:yyyy/MM/dd}/{financialEvent.EventId}.json";
             var blobClient = blobContainerClient.GetBlobClient(blobPath);
 
-            var json = JsonSerializer.Serialize(eventItem, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
+            // CONTRACTS CHANGE:
+            // Persist the typed event through the shared serializer.
+            var json = FinancialEventSerializer.Serialize(financialEvent);
 
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
             await blobClient.UploadAsync(stream, overwrite: true);
 
             _logger.LogInformation(
-                "Event {EventId} persisted to Blob Storage at {BlobPath}.",
-                eventItem.Id,
+                "Financial event {EventId} persisted to Blob Storage at {BlobPath}.",
+                financialEvent.EventId,
                 blobPath);
 
             // -----------------------------
             // Write idempotency marker
             // -----------------------------
             // Marker is written only after successful processing
+            // CONTRACTS CHANGE:
+            // Marker now includes correlation and contract metadata for traceability.
             var markerContent = JsonSerializer.Serialize(new
             {
-                eventId = eventItem.Id,
-                processedAt = DateTime.UtcNow
+                eventId = financialEvent.EventId,
+                correlationId = financialEvent.CorrelationId,
+                eventType = financialEvent.EventType,
+                eventVersion = financialEvent.EventVersion,
+                processedAtUtc = DateTime.UtcNow
             });
 
             using var markerStream = new MemoryStream(Encoding.UTF8.GetBytes(markerContent));
             await processedBlob.UploadAsync(markerStream, overwrite: true);
 
             _logger.LogInformation(
-                "Idempotency marker written for event {EventId}",
-                eventItem.Id);
+                "Idempotency marker written for financial event {EventId}",
+                financialEvent.EventId);
 
-            _logger.LogInformation("Event {EventId} processed successfully.", eventItem.Id);
+            _logger.LogInformation(
+                "Financial event {EventType} with EventId {EventId} processed successfully.",
+                financialEvent.EventType,
+                financialEvent.EventId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled failure in ProcessEventFunction.");
             throw;
         }
+    }
+
+    // CONTRACTS CHANGE:
+    // New typed event dispatch method.
+    // This keeps contract-specific logic explicit and makes future event handlers easy to extend.
+    private Task ProcessTypedEvent(FinancialEvent financialEvent)
+    {
+        switch (financialEvent)
+        {
+            case PaymentCreatedEvent paymentCreated:
+                _logger.LogInformation(
+                    "Handled PaymentCreatedEvent. PaymentId: {PaymentId}. Amount: {Amount} {Currency}",
+                    paymentCreated.PaymentId,
+                    paymentCreated.Amount,
+                    paymentCreated.Currency);
+                break;
+
+            case PaymentSettledEvent paymentSettled:
+                _logger.LogInformation(
+                    "Handled PaymentSettledEvent. PaymentId: {PaymentId}. SettlementId: {SettlementId}",
+                    paymentSettled.PaymentId,
+                    paymentSettled.SettlementId);
+                break;
+
+            case RefundIssuedEvent refundIssued:
+                _logger.LogInformation(
+                    "Handled RefundIssuedEvent. RefundId: {RefundId}. PaymentId: {PaymentId}",
+                    refundIssued.RefundId,
+                    refundIssued.PaymentId);
+                break;
+
+            case FraudCheckRequestedEvent fraudCheckRequested:
+                _logger.LogInformation(
+                    "Handled FraudCheckRequestedEvent. PaymentId: {PaymentId}. RiskLevel: {RiskLevel}",
+                    fraudCheckRequested.PaymentId,
+                    fraudCheckRequested.RiskLevel);
+                break;
+
+            default:
+                throw new NotSupportedException(
+                    $"Unsupported financial event type: {financialEvent.EventType}");
+        }
+
+        return Task.CompletedTask;
     }
 }

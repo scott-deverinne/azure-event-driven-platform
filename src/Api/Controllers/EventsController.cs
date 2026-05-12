@@ -1,6 +1,7 @@
-using System.Text.Json;
-using Api.Models;
+// CONTRACTS CHANGE: removed System.Text.Json and Api.Models because the API now publishes strongly typed financial event contracts.
 using Azure.Messaging.ServiceBus;
+using CloudNativePlatform.Contracts.Events;
+using CloudNativePlatform.Contracts.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -53,18 +54,45 @@ public class EventsController : ControllerBase
         });
     }
 
-    // Main endpoint: send event to Service Bus
-    [HttpPost]
-    public async Task<IActionResult> CreateEvent([FromBody] EventItem item)
+    // CONTRACTS CHANGE:
+    // Main endpoint changed from the old generic EventItem model to a strongly typed PaymentCreatedEvent.
+    // This is the first typed contract endpoint. Additional financial events are added below as separate explicit endpoints.
+    [HttpPost("payment-created")]
+    public async Task<IActionResult> CreatePaymentCreatedEvent([FromBody] PaymentCreatedEvent financialEvent)
+    {
+        return await PublishFinancialEvent(financialEvent);
+    }
+
+    // CONTRACTS CHANGE:
+    // Adds typed ingestion endpoint for payment settlement events.
+    [HttpPost("payment-settled")]
+    public async Task<IActionResult> CreatePaymentSettledEvent([FromBody] PaymentSettledEvent financialEvent)
+    {
+        return await PublishFinancialEvent(financialEvent);
+    }
+
+    // CONTRACTS CHANGE:
+    // Adds typed ingestion endpoint for refund events.
+    [HttpPost("refund-issued")]
+    public async Task<IActionResult> CreateRefundIssuedEvent([FromBody] RefundIssuedEvent financialEvent)
+    {
+        return await PublishFinancialEvent(financialEvent);
+    }
+
+    // CONTRACTS CHANGE:
+    // Adds typed ingestion endpoint for fraud-check workflow events.
+    [HttpPost("fraud-check-requested")]
+    public async Task<IActionResult> CreateFraudCheckRequestedEvent([FromBody] FraudCheckRequestedEvent financialEvent)
+    {
+        return await PublishFinancialEvent(financialEvent);
+    }
+
+    // CONTRACTS CHANGE:
+    // Shared publishing flow for all FinancialEvent contract types.
+    // Keeps Service Bus publishing logic in one place and standardizes metadata, correlation, and message properties.
+    private async Task<IActionResult> PublishFinancialEvent(FinancialEvent financialEvent)
     {
         var queueName = _configuration["ServiceBus:QueueName"];
-
-        // Log incoming event
-        _logger.LogInformation(
-            "Received API event {EventId}. Type: {Type}. Data: {Data}",
-            item.Id,
-            item.Type,
-            item.Data);
 
         if (string.IsNullOrWhiteSpace(queueName))
         {
@@ -72,34 +100,90 @@ public class EventsController : ControllerBase
             return StatusCode(500, new { message = "Service Bus queue name is not configured." });
         }
 
+        // CONTRACTS CHANGE:
+        // Validate required distributed-system metadata before queueing.
+        if (string.IsNullOrWhiteSpace(financialEvent.EventId))
+        {
+            return BadRequest(new { message = "eventId is required." });
+        }
+
+        if (string.IsNullOrWhiteSpace(financialEvent.CorrelationId))
+        {
+            return BadRequest(new { message = "correlationId is required." });
+        }
+
+        if (string.IsNullOrWhiteSpace(financialEvent.EventType))
+        {
+            return BadRequest(new { message = "eventType is required." });
+        }
+
+        if (string.IsNullOrWhiteSpace(financialEvent.EventVersion))
+        {
+            return BadRequest(new { message = "eventVersion is required." });
+        }
+
+        if (string.IsNullOrWhiteSpace(financialEvent.Source))
+        {
+            return BadRequest(new { message = "source is required." });
+        }
+
+        // Log incoming event
+        // CONTRACTS CHANGE:
+        // Logs now use typed contract metadata instead of old EventItem Id/Type/Data fields.
+        _logger.LogInformation(
+            "Received financial event {EventType} with EventId {EventId} and CorrelationId {CorrelationId}",
+            financialEvent.EventType,
+            financialEvent.EventId,
+            financialEvent.CorrelationId);
+
         await using var sender = _serviceBusClient.CreateSender(queueName);
 
-        var messageBody = JsonSerializer.Serialize(item);
-        var message = new ServiceBusMessage(messageBody);
+        // CONTRACTS CHANGE:
+        // Serialize the concrete financial event type while preserving the correct derived-event shape.
+        var messageBody = FinancialEventSerializer.Serialize(financialEvent);
+
+        var message = new ServiceBusMessage(messageBody)
+        {
+            // CONTRACTS CHANGE:
+            // Standard Service Bus metadata now aligns with the event contract.
+            MessageId = financialEvent.EventId,
+            CorrelationId = financialEvent.CorrelationId,
+            ContentType = "application/json",
+            Subject = financialEvent.EventType
+        };
 
         // Correlation / tracing metadata
-        message.CorrelationId = item.Id.ToString();
-        message.ApplicationProperties["EventId"] = item.Id.ToString();
-        message.ApplicationProperties["EventType"] = item.Type;
+        // CONTRACTS CHANGE:
+        // ApplicationProperties now carry contract metadata used by tracing, diagnostics, and future routing.
+        message.ApplicationProperties["eventId"] = financialEvent.EventId;
+        message.ApplicationProperties["correlationId"] = financialEvent.CorrelationId;
+        message.ApplicationProperties["eventType"] = financialEvent.EventType;
+        message.ApplicationProperties["eventVersion"] = financialEvent.EventVersion;
+        message.ApplicationProperties["source"] = financialEvent.Source;
 
         // Log before sending
         _logger.LogInformation(
-            "Publishing event {EventId} to Service Bus queue {QueueName}",
-            item.Id,
+            "Publishing financial event {EventType} with EventId {EventId} to Service Bus queue {QueueName}",
+            financialEvent.EventType,
+            financialEvent.EventId,
             queueName);
 
         await sender.SendMessageAsync(message);
 
         // Log after sending
         _logger.LogInformation(
-            "Published event {EventId} successfully to queue {QueueName}",
-            item.Id,
+            "Published financial event {EventType} with EventId {EventId} successfully to queue {QueueName}",
+            financialEvent.EventType,
+            financialEvent.EventId,
             queueName);
 
         return Accepted(new
         {
-            message = "Event queued successfully",
-            eventId = item.Id
+            message = "Financial event queued successfully",
+            financialEvent.EventId,
+            financialEvent.CorrelationId,
+            financialEvent.EventType,
+            financialEvent.EventVersion
         });
     }
 }

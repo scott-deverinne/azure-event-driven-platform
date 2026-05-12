@@ -1,6 +1,6 @@
 name: Terraform
 
-on:
+"on":
   pull_request:
     paths:
       - "infra/**"
