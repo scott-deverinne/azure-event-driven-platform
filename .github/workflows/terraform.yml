@@ -32,20 +32,29 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-latest
 
-    env:
-      TF_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.base_ref == 'main' && 'prod' || 'dev' }}
-      TF_WORKING_DIR: infra/environments/${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.base_ref == 'main' && 'prod' || 'dev' }}
-
     environment:
-      name: ${{ env.TF_ENV }}
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.base_ref == 'main' && 'prod' || 'dev' }}
 
     defaults:
       run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        working-directory: ./infra/environments/dev
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Select Terraform environment
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "TF_ENV=${{ inputs.environment }}" >> $GITHUB_ENV
+            echo "TF_WORKING_DIR=infra/environments/${{ inputs.environment }}" >> $GITHUB_ENV
+          elif [[ "${{ github.base_ref }}" == "main" ]]; then
+            echo "TF_ENV=prod" >> $GITHUB_ENV
+            echo "TF_WORKING_DIR=infra/environments/prod" >> $GITHUB_ENV
+          else
+            echo "TF_ENV=dev" >> $GITHUB_ENV
+            echo "TF_WORKING_DIR=infra/environments/dev" >> $GITHUB_ENV
+          fi
 
       - name: Azure login with OIDC
         uses: azure/login@v2
@@ -60,15 +69,19 @@ jobs:
           terraform_version: 1.15.1
 
       - name: Terraform format check
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform fmt -check -recursive
 
       - name: Terraform init
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
 
       - name: Terraform validate
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
 
       - name: Terraform plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform plan -refresh=false -out=tfplan
 
   apply:
@@ -77,15 +90,8 @@ jobs:
     needs: plan
     if: github.event_name == 'workflow_dispatch'
 
-    env:
-      TF_WORKING_DIR: infra/environments/${{ inputs.environment }}
-
     environment:
       name: ${{ inputs.environment }}
-
-    defaults:
-      run:
-        working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
       - name: Checkout repository
@@ -104,7 +110,9 @@ jobs:
           terraform_version: 1.15.1
 
       - name: Terraform init
+        working-directory: infra/environments/${{ inputs.environment }}
         run: terraform init
 
       - name: Terraform apply
+        working-directory: infra/environments/${{ inputs.environment }}
         run: terraform apply -refresh=false -auto-approve
