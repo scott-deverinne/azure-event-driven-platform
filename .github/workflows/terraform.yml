@@ -27,20 +27,21 @@ permissions:
   id-token: write
   pull-requests: read
 
-env:
-  TF_ENV: ${{ github.base_ref == 'main' && 'prod' || 'dev' }}
-
 jobs:
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
 
+    env:
+      TF_ENV: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.base_ref == 'main' && 'prod' || 'dev' }}
+      TF_WORKING_DIR: infra/environments/${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.base_ref == 'main' && 'prod' || 'dev' }}
+
     environment:
-      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.TF_ENV }}
+      name: ${{ env.TF_ENV }}
 
     defaults:
       run:
-        working-directory: infra/environments/${{ github.event_name == 'workflow_dispatch' && inputs.environment || env.TF_ENV }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
       - name: Checkout repository
@@ -76,12 +77,15 @@ jobs:
     needs: plan
     if: github.event_name == 'workflow_dispatch'
 
+    env:
+      TF_WORKING_DIR: infra/environments/${{ inputs.environment }}
+
     environment:
       name: ${{ inputs.environment }}
 
     defaults:
       run:
-        working-directory: infra/environments/${{ inputs.environment }}
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
     steps:
       - name: Checkout repository
@@ -104,4 +108,3 @@ jobs:
 
       - name: Terraform apply
         run: terraform apply -refresh=false -auto-approve
-```
