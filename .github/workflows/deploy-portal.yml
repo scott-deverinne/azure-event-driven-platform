@@ -1,0 +1,91 @@
+name: Deploy Portal
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "src/CloudNativePlatform.Portal/**"
+      - ".github/workflows/deploy-portal.yml"
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - prod
+
+jobs:
+  deploy:
+    name: Deploy Portal
+    runs-on: ubuntu-latest
+
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref_name == 'main' && 'prod' || 'dev') }}
+
+    defaults:
+      run:
+        working-directory: src/CloudNativePlatform.Portal
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select environment
+        id: env
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET_ENV="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            TARGET_ENV="prod"
+          else
+            TARGET_ENV="dev"
+          fi
+
+          echo "target_env=$TARGET_ENV" >> "$GITHUB_OUTPUT"
+
+          if [ "$TARGET_ENV" = "prod" ]; then
+            echo "api_base_url=${{ vars.PROD_API_BASE_URL }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "api_base_url=${{ vars.DEV_API_BASE_URL }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/CloudNativePlatform.Portal/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build portal
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ steps.env.outputs.api_base_url }}
+
+      - name: Deploy to Azure Static Web Apps - Dev
+        if: steps.env.outputs.target_env == 'dev'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: src/CloudNativePlatform.Portal/dist
+          skip_app_build: true
+
+      - name: Deploy to Azure Static Web Apps - Prod
+        if: steps.env.outputs.target_env == 'prod'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_PROD }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: src/CloudNativePlatform.Portal/dist
+          skip_app_build: true
