@@ -1,0 +1,42 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/Api/Dockerfile
+    container_name: cloudnativeplatform-api
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ServiceBusConnection: ${SERVICEBUS_CONNECTION}
+      AzureWebJobsStorage: ${AZURE_WEBJOBS_STORAGE}
+    depends_on:
+      - azurite
+
+  functions:
+    build:
+      context: .
+      dockerfile: src/Functions/Dockerfile
+    platform: linux/amd64
+    container_name: cloudnativeplatform-functions
+    ports:
+      - "7071:80"
+    environment:
+      AzureWebJobsStorage: ${AZURE_WEBJOBS_STORAGE}
+      ServiceBusConnection: ${SERVICEBUS_CONNECTION}
+      FUNCTIONS_WORKER_RUNTIME: dotnet-isolated
+    depends_on:
+      - azurite
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: cloudnativeplatform-azurite
+    ports:
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
+    command: >
+      azurite
+      --blobHost 0.0.0.0
+      --queueHost 0.0.0.0
+      --tableHost 0.0.0.0

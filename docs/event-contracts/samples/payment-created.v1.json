@@ -1,0 +1,13 @@
+{
+  "eventId": "evt-payment-created-001",
+  "correlationId": "corr-001",
+  "eventType": "payment.created",
+  "eventVersion": "1.0",
+  "occurredAtUtc": "2026-05-10T12:00:00Z",
+  "source": "event-ingestion-api",
+  "paymentId": "pay-001",
+  "customerId": "cust-001",
+  "amount": 149.99,
+  "currency": "GBP",
+  "paymentMethod": "card"
+}
