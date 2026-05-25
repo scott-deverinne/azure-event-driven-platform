@@ -94,11 +94,21 @@ public class EventsController : ControllerBase
     {
         var queueName = _configuration["ServiceBus:QueueName"];
 
+        if (string.IsNullOrWhiteSpace(serviceBusConnection))
+        {
+            return StatusCode(500, new { message = "Service Bus connection string is not configured." });
+        }
+
         if (string.IsNullOrWhiteSpace(queueName))
         {
-            _logger.LogError("Service Bus queue name is not configured.");
             return StatusCode(500, new { message = "Service Bus queue name is not configured." });
         }
+
+        _logger.LogInformation(
+            "Preparing to publish event {EventId} to queue {QueueName} in environment {Environment}",
+            financialEvent.EventId,
+            queueName,
+            Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"));
 
         // CONTRACTS CHANGE:
         // Validate required distributed-system metadata before queueing.
@@ -109,7 +119,12 @@ public class EventsController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(financialEvent.CorrelationId))
         {
-            return BadRequest(new { message = "correlationId is required." });
+            financialEvent.CorrelationId = Guid.NewGuid().ToString();
+
+            _logger.LogInformation(
+                "Generated new CorrelationId {CorrelationId} for EventId {EventId}",
+                financialEvent.CorrelationId,
+                financialEvent.EventId);
         }
 
         if (string.IsNullOrWhiteSpace(financialEvent.EventType))
