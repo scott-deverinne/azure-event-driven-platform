@@ -1,0 +1,61 @@
+name: Docker Build Validation
+
+"on":
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - "src/Api/**"
+      - "src/Functions/**"
+      - "src/CloudNativePlatform.Contracts/**"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - ".github/workflows/docker-build.yml"
+
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - "src/Api/**"
+      - "src/Functions/**"
+      - "src/CloudNativePlatform.Contracts/**"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - ".github/workflows/docker-build.yml"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA}" >> $GITHUB_ENV
+
+      - name: Build API image
+        run: |
+          docker build \
+            -f src/Api/Dockerfile \
+            -t cloudnativeplatform-api:${IMAGE_TAG} \
+            .
+
+      - name: Build Function App image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -f src/Functions/Dockerfile \
+            -t cloudnativeplatform-functions:${IMAGE_TAG} \
+            .
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config
