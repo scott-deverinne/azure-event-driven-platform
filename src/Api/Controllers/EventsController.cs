@@ -136,16 +136,19 @@ public class EventsController : ControllerBase
             financialEvent.EventId,
             financialEvent.CorrelationId);
 
+        // Create a Service Bus sender for the configured queue.
+        // This keeps the API decoupled from downstream event processing services.
         await using var sender = _serviceBusClient.CreateSender(queueName);
 
-        // CONTRACTS CHANGE:
-        // Serialize the concrete financial event type while preserving the correct derived-event shape.
+        // Serialize the strongly-typed financial event into JSON
+        // before publishing to the event-driven messaging layer.
         var messageBody = FinancialEventSerializer.Serialize(financialEvent);
 
+        // Create the outbound Service Bus message with distributed tracing
+        // and event metadata to support observability, correlation tracking,
+        // replay workflows, and downstream event routing.
         var message = new ServiceBusMessage(messageBody)
         {
-            // CONTRACTS CHANGE:
-            // Standard Service Bus metadata now aligns with the event contract.
             MessageId = financialEvent.EventId,
             CorrelationId = financialEvent.CorrelationId,
             ContentType = "application/json",
